@@ -1,0 +1,7 @@
+node_modules/
+.wrangler/
+.claude/
+.env
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

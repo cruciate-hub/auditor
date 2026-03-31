@@ -4,17 +4,50 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lighthouse — Brand Messaging Auditor</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { figtree: ['Figtree', 'Inter', 'sans-serif'] },
+          colors: {
+            brand: { blue: '#3B41EC', hover: '#272B9D', pressed: '#27265E', transparent: 'rgba(42, 49, 233, 0.1)' },
+            surface: { 0: '#111111', 1: '#1e1e1e', 2: '#272727', 3: '#2e2e2e' },
+            bdark: { DEFAULT: '#232324', hover: '#39393A' },
+            txt: { primary: '#FFFFFF', secondary: '#D0D0D1', muted: '#A0A1A3', disabled: '#717275' },
+            status: { red: '#FF305A', orange: '#F66005', yellow: '#F7C506', green: '#1DC497', pink: '#F568F0', purple: '#9F72FF', sky: '#45A5ED', blue: '#3769EC' },
+          },
+        },
+      },
+    };
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { font-family: 'Figtree', 'Inter', sans-serif; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .animate-spin { animation: spin 1s linear infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    .btn-primary { background: linear-gradient(135deg, #3769EC 0%, #3B41EC 50%, #45A5ED 100%); transition: all 0.15s ease; border-radius: 8px; }
+    .btn-primary:hover { filter: brightness(1.08); box-shadow: 0 4px 16px rgba(59, 65, 236, 0.4); }
+    .btn-primary:focus-visible { outline: 2px solid #3B41EC; outline-offset: 3px; }
+    .btn-primary:active { transform: scale(0.97); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+    .btn-secondary { background: transparent; border: 1px solid rgba(255,255,255,0.3); transition: all 0.15s ease; border-radius: 8px; }
+    .btn-secondary:hover { border-color: rgba(255,255,255,0.6); }
+    .btn-secondary:focus-visible { outline: 2px solid #3B41EC; outline-offset: 3px; }
+    .btn-secondary:active { transform: scale(0.97); }
+    .card-elevated { box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+    .modal-elevated { box-shadow: 0 8px 32px rgba(0,0,0,0.7); }
+    .brand-gradient-bg { background: linear-gradient(135deg, #3769EC 0%, #3B41EC 50%, #45A5ED 100%); }
     #error-display { display: none; position: fixed; top: 0; left: 0; right: 0; background: #fee2e2; color: #991b1b; padding: 16px; font-family: monospace; font-size: 13px; z-index: 99999; white-space: pre-wrap; max-height: 50vh; overflow: auto; }
   </style>
   <script>
@@ -31,6 +64,10 @@
   <div id="root"></div>
   <script type="text/babel">
     const { useState, useCallback, useRef, useEffect } = React;
+
+    // ─── Configuration ───────────────────────────────────────────────
+    // Change this to your deployed Worker URL. Use "" for same-origin or local dev.
+    const WORKER_URL = "https://lighthouse-auditor.cruciate-hub.workers.dev";
 
     // ─── SVG Icon Components ─────────────────────────────────────────
     const SvgIcon = ({ children, size = 24, className = "", ...rest }) => (
@@ -80,973 +117,888 @@
     // ─── Recharts (with fallback) ────────────────────────────────────
     const RechartsOK = typeof Recharts !== 'undefined';
     const RC = RechartsOK ? Recharts : {};
-// ─── Mock Data ───────────────────────────────────────────────────
-const MOCK_RADAR_DATA = [
-  { dimension: "Terminology", score: 65, fullMark: 100 },
-  { dimension: "Tone", score: 78, fullMark: 100 },
-  { dimension: "Hierarchy", score: 52, fullMark: 100 },
-  { dimension: "Claims", score: 88, fullMark: 100 },
-  { dimension: "Positioning", score: 60, fullMark: 100 },
-];
 
-const MOCK_FINDINGS = [
-  {
-    id: 1, severity: "critical", category: "Terminology",
-    text: '"collect data"',
-    location: "Hero sub-headline",
-    explanation: 'The messaging doc never uses "collect data." It specifically frames this as "first-party and zero-party insight" and "intelligence." "Collect data" sounds extractive and privacy-hostile — the exact opposite of the trust-building narrative.',
-    docRef: "Section 15 — Approved Terminology",
-    suggestion: 'Replace with "generate real user insight" or "turn participation into intelligence"',
-    original: "Drive engagement, collect data and grow revenues",
-    revised: "Drive engagement, generate insight, and grow — directly inside your app."
-  },
-  {
-    id: 2, severity: "critical", category: "Hierarchy",
-    text: "Revenue leads in hero",
-    location: "Hero sub-headline",
-    explanation: 'The messaging hierarchy (Section 20) explicitly states revenue/monetization should come after engagement and intelligence. Leading with "grow revenues" in the hero violates the prescribed order.',
-    docRef: "Section 20 — Messaging Hierarchy, Step 5",
-    suggestion: "Move revenue language to later in the page. Hero should focus on engagement and owned community.",
-    original: "Drive engagement, collect data and grow revenues – directly inside your app.",
-    revised: "Build owned engagement and turn participation into lasting growth — directly inside your app."
-  },
-  {
-    id: 3, severity: "critical", category: "Terminology",
-    text: '"Understand" pillar label',
-    location: "Three pillars section",
-    explanation: 'The messaging doc defines the second pillar as "Analyze" (Section 7). The homepage uses "Understand" which is not an approved pillar name. This creates inconsistency across touchpoints.',
-    docRef: "Section 7 — Product Pillars / Section 15 — Approved Terminology",
-    suggestion: 'Change "Understand" to "Analyze" to match the messaging doc, or update the messaging doc to approve "Understand" as a variant.',
-    original: "Understand",
-    revised: "Analyze"
-  },
-  {
-    id: 4, severity: "warning", category: "Positioning",
-    text: '"All-in-one platform"',
-    location: "Platform details section",
-    explanation: 'The messaging doc states "Infrastructure should remain the dominant descriptor" (Section 15). "Platform" is listed as acceptable supporting term, but using it as the primary framing dilutes the infrastructure positioning.',
-    docRef: "Section 15 — Approved Terminology",
-    suggestion: 'Replace with "Complete infrastructure" or "End-to-end infrastructure" — use "platform" as a secondary descriptor only.',
-    original: "All-in-one platform",
-    revised: "Complete in-app community infrastructure"
-  },
-  {
-    id: 5, severity: "warning", category: "Positioning",
-    text: 'Missing "infrastructure" in hero',
-    location: "Hero section",
-    explanation: 'The messaging doc insists "infrastructure" should be the dominant descriptor. The hero headline and sub-headline don\'t use it at all, making social.plus sound like a feature tool rather than a foundational layer.',
-    docRef: "Section 15 — Approved Terminology",
-    suggestion: 'Incorporate "infrastructure" into hero messaging. E.g., "The in-app community infrastructure that powers growth."',
-    original: "Build an in-app community that powers growth",
-    revised: "In-app community infrastructure that powers growth"
-  },
-  {
-    id: 6, severity: "warning", category: "Claims",
-    text: "Dead customer logo links",
-    location: "Logo bar",
-    explanation: 'Multiple customer logos link to "#" with no customer story. The Claims and Evidence Policy (Section 19) states not to reference things you can\'t back up. Dead links undermine credibility.',
-    docRef: "Section 19 — Claims and Evidence Policy",
-    suggestion: "Remove logos without stories, or create the missing customer story pages before displaying them.",
-    original: "Syngenta, Smartfit, Cipla, Betsson, Volkswagen, TrueMoney, Sisal — all link to #",
-    revised: "Only display logos with published customer stories, or remove the link entirely."
-  },
-  {
-    id: 7, severity: "warning", category: "Hierarchy",
-    text: '"unlock new revenue streams" in customer stories intro',
-    location: "Customer stories section",
-    explanation: "Revenue language appears before engagement and intelligence context is established. Per the messaging hierarchy, revenue expansion should be positioned as a result, not a lead.",
-    docRef: "Section 20 — Messaging Hierarchy",
-    suggestion: "Reframe to lead with engagement outcomes. Revenue is the consequence, not the hook.",
-    original: "accelerate app growth and unlock new revenue streams",
-    revised: "deepen engagement and build lasting growth with social.plus"
-  },
-  {
-    id: 8, severity: "warning", category: "Tone",
-    text: "Generic closing CTA",
-    location: "Bottom CTA section",
-    explanation: 'The closing CTA ("Book a call with our sales team and let us help you get started") is generic SaaS language. The doc\'s narrative structure says to close by reinforcing compounding growth and competitive advantage.',
-    docRef: "Section 21 — Standard Narrative Structure, Step 5",
-    suggestion: "Use the CTA to land the strategic message. Make the reader feel the cost of inaction.",
-    original: "Book a call with our sales team and let us help you get started with social.plus",
-    revised: "See how leading brands are building the next generation of product engagement."
-  },
-  {
-    id: 9, severity: "suggestion", category: "Hierarchy",
-    text: "No market context in hero area",
-    location: "Hero section",
-    explanation: 'The Standard Narrative Structure (Section 21) says to open with the market shift or a bold statement about digital products evolving. The hero jumps straight to solution without establishing why this matters.',
-    docRef: "Section 21 — Standard Narrative Structure, Step 1",
-    suggestion: "Add a brief market context line near the hero. Even a single sentence establishing the shift from transactional to participatory.",
-    original: "(no market context present)",
-    revised: "Digital products are evolving from utilities into ecosystems. Build the in-app community infrastructure that powers growth."
-  },
-  {
-    id: 10, severity: "suggestion", category: "Terminology",
-    text: '"worlds" typo',
-    location: "Logo bar headline",
-    explanation: 'Missing apostrophe: "worlds" should be "world\'s."',
-    docRef: "Section 18 — Writing Style Rules",
-    suggestion: 'Fix to "world\'s biggest brands."',
-    original: "Trusted by some of the worlds biggest brands",
-    revised: "Trusted by some of the world's biggest brands"
-  },
-  {
-    id: 11, severity: "suggestion", category: "Claims",
-    text: "GitHub link uses old brand",
-    location: "Footer",
-    explanation: 'The GitHub link points to github.com/Amityco — the old brand name. The messaging doc says not to use alternate names or "formerly" references.',
-    docRef: "Section 15 — Approved Terminology",
-    suggestion: "Update GitHub organization name to match current branding.",
-    original: "github.com/Amityco",
-    revised: "github.com/socialplus (or equivalent)"
-  },
-  {
-    id: 12, severity: "suggestion", category: "Positioning",
-    text: "Use cases lack outcome context",
-    location: "Use cases section",
-    explanation: "Each use case tile is just a label and image. The messaging doc says features should be connected to business impact. Even a single line per use case linking to engagement/retention would strengthen this section.",
-    docRef: "Section 21 — Standard Narrative Structure, Step 4",
-    suggestion: "Add a brief outcome line per use case. E.g., Activity Feeds → 'Keep users returning daily with personalized content streams.'",
-    original: "Activity Feeds (label only)",
-    revised: "Activity Feeds — Keep users coming back with personalized, real-time content streams"
-  },
-];
+    // ─── Constants ───────────────────────────────────────────────────
+    const QUICK_PAGES = [
+      { label: "Homepage", url: "https://social.plus", icon: "🏠" },
+      { label: "Product", url: "https://social.plus/product", icon: "📦" },
+      { label: "Pricing", url: "https://social.plus/pricing", icon: "💰" },
+      { label: "About", url: "https://social.plus/about", icon: "ℹ️" },
+      { label: "Analytics", url: "https://social.plus/analytics", icon: "📊" },
+      { label: "Monetization", url: "https://social.plus/monetization", icon: "🎯" },
+      { label: "Chat", url: "https://social.plus/chat", icon: "💬" },
+      { label: "Social", url: "https://social.plus/social", icon: "👥" },
+      { label: "Blog", url: "https://social.plus/blog", icon: "📝" },
+    ];
 
-const MOCK_TERMS = {
-  approved: [
-    { term: "infrastructure", found: false, count: 0 },
-    { term: "in-app community", found: true, count: 2 },
-    { term: "SDKs", found: true, count: 1 },
-    { term: "APIs", found: false, count: 0 },
-    { term: "UIKit", found: true, count: 1 },
-    { term: "Console", found: false, count: 0 },
-    { term: "brands", found: true, count: 3 },
-    { term: "apps", found: true, count: 4 },
-    { term: "users", found: true, count: 2 },
-    { term: "community", found: true, count: 5 },
-    { term: "social layer", found: false, count: 0 },
-    { term: "participation", found: false, count: 0 },
-    { term: "first-party data", found: true, count: 1 },
-    { term: "zero-party data", found: true, count: 1 },
-    { term: "Engage", found: true, count: 1 },
-    { term: "Analyze", found: false, count: 0 },
-    { term: "Monetize", found: true, count: 1 },
-  ],
-  forbidden: [
-    { term: "social network", found: false, count: 0 },
-    { term: "forum platform", found: false, count: 0 },
-    { term: "chat tool", found: false, count: 0 },
-    { term: "ad network", found: false, count: 0 },
-    { term: "guaranteed growth", found: false, count: 0 },
-    { term: "guaranteed retention", found: false, count: 0 },
-    { term: "guaranteed revenue", found: false, count: 0 },
-    { term: "plug and play", found: false, count: 0 },
-    { term: "easy community", found: false, count: 0 },
-    { term: "collect data", found: true, count: 1 },
-    { term: "Amity", found: true, count: 1 },
-  ]
-};
+    const ANALYSIS_MODES = [
+      { id: "full", label: "Full Audit", icon: BarChart3, desc: "Complete analysis against all rules" },
+      { id: "terminology", label: "Terminology", icon: BookOpen, desc: "Approved & forbidden terms check" },
+      { id: "hierarchy", label: "Hierarchy", icon: Layers, desc: "Message structure & ordering" },
+      { id: "tone", label: "Tone of Voice", icon: MessageSquare, desc: "Confidence, energy, structure" },
+      { id: "persona", label: "Persona Lens", icon: Target, desc: "CPO / CTO / Developer view" },
+      { id: "positioning", label: "Positioning", icon: Shield, desc: "Category & competitor framing" },
+    ];
 
-const QUICK_PAGES = [
-  { label: "Homepage", url: "https://social.plus", icon: "🏠" },
-  { label: "Product", url: "https://social.plus/product", icon: "📦" },
-  { label: "Pricing", url: "https://social.plus/pricing", icon: "💰" },
-  { label: "About", url: "https://social.plus/about", icon: "ℹ️" },
-  { label: "Analytics", url: "https://social.plus/analytics", icon: "📊" },
-  { label: "Monetization", url: "https://social.plus/monetization", icon: "🎯" },
-  { label: "Chat", url: "https://social.plus/chat", icon: "💬" },
-  { label: "Social", url: "https://social.plus/social", icon: "👥" },
-  { label: "Blog", url: "https://social.plus/blog", icon: "📝" },
-];
+    const CONTENT_TYPES = [
+      "Webpage", "Email", "Social Post", "Presentation", "Sales Deck",
+      "Blog Post", "Ad Copy", "Product Copy", "Press Release", "Internal Doc"
+    ];
 
-const ANALYSIS_MODES = [
-  { id: "full", label: "Full Audit", icon: BarChart3, desc: "Complete analysis against all rules" },
-  { id: "terminology", label: "Terminology", icon: BookOpen, desc: "Approved & forbidden terms check" },
-  { id: "hierarchy", label: "Hierarchy", icon: Layers, desc: "Message structure & ordering" },
-  { id: "tone", label: "Tone of Voice", icon: MessageSquare, desc: "Confidence, energy, structure" },
-  { id: "persona", label: "Persona Lens", icon: Target, desc: "CPO / CTO / Developer view" },
-  { id: "positioning", label: "Positioning", icon: Shield, desc: "Category & competitor framing" },
-];
+    const SEVERITY_CONFIG = {
+      critical: { color: "bg-status-red", text: "text-status-red", bg: "bg-status-red/10", border: "border-status-red/30", icon: AlertCircle, label: "Critical" },
+      warning: { color: "bg-status-orange", text: "text-status-orange", bg: "bg-status-orange/10", border: "border-status-orange/30", icon: AlertTriangle, label: "Warning" },
+      suggestion: { color: "bg-status-sky", text: "text-status-sky", bg: "bg-status-sky/10", border: "border-status-sky/30", icon: Info, label: "Suggestion" },
+    };
 
-const CONTENT_TYPES = [
-  "Webpage", "Email", "Social Post", "Presentation", "Sales Deck", 
-  "Blog Post", "Ad Copy", "Product Copy", "Press Release", "Internal Doc"
-];
+    // ─── Main Component ──────────────────────────────────────────────
+    function Lighthouse() {
+      const [darkMode, setDarkMode] = useState(true);
+      const [sidebarOpen, setSidebarOpen] = useState(true);
+      const [view, setView] = useState("input"); // input | dashboard | annotated | sidebyside | heatmap
+      const [inputMode, setInputMode] = useState("url"); // url | upload | paste
+      const [urlValue, setUrlValue] = useState("");
+      const [pasteValue, setPasteValue] = useState("");
+      const [uploadedFileContent, setUploadedFileContent] = useState("");
+      const [uploadedFileName, setUploadedFileName] = useState("");
+      const [contentType, setContentType] = useState("Webpage");
+      const [contentLabel, setContentLabel] = useState("");
+      const [analysisMode, setAnalysisMode] = useState("full");
+      const [messagingDoc, setMessagingDoc] = useState({ name: "Live from GitHub", loaded: true });
+      const [docPanelOpen, setDocPanelOpen] = useState(false);
+      const [settingsOpen, setSettingsOpen] = useState(false);
+      const [selectedFinding, setSelectedFinding] = useState(null);
+      const [severityFilter, setSeverityFilter] = useState("all");
+      const [categoryFilter, setCategoryFilter] = useState("all");
+      const [analyzing, setAnalyzing] = useState(false);
+      const [analyzeStep, setAnalyzeStep] = useState(0);
+      const [expandedFindings, setExpandedFindings] = useState(new Set());
+      const [error, setError] = useState(null);
+      const [analysisResult, setAnalysisResult] = useState(null);
+      const [analyzedLabel, setAnalyzedLabel] = useState("");
+      const fileInputRef = useRef(null);
+      const docInputRef = useRef(null);
 
-const SEVERITY_CONFIG = {
-  critical: { color: "bg-red-500", text: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/30", icon: AlertCircle, label: "Critical" },
-  warning: { color: "bg-amber-500", text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/30", icon: AlertTriangle, label: "Warning" },
-  suggestion: { color: "bg-blue-500", text: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/30", icon: Info, label: "Suggestion" },
-};
+      // Persist history in localStorage
+      const [history, setHistory] = useState(() => {
+        try {
+          return JSON.parse(localStorage.getItem("lighthouse-history") || "[]");
+        } catch { return []; }
+      });
 
-// ─── Main Component ──────────────────────────────────────────────
-function Lighthouse() {
-  const [darkMode, setDarkMode] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [view, setView] = useState("input"); // input | dashboard | annotated | sidebyside | heatmap
-  const [inputMode, setInputMode] = useState("url"); // url | upload | paste
-  const [urlValue, setUrlValue] = useState("");
-  const [pasteValue, setPasteValue] = useState("");
-  const [contentType, setContentType] = useState("Webpage");
-  const [contentLabel, setContentLabel] = useState("");
-  const [analysisMode, setAnalysisMode] = useState("full");
-  const [messagingDoc, setMessagingDoc] = useState({ name: "social-plus_core-messaging.md", loaded: true });
-  const [docPanelOpen, setDocPanelOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [selectedFinding, setSelectedFinding] = useState(null);
-  const [severityFilter, setSeverityFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [analyzing, setAnalyzing] = useState(false);
-  const [expandedFindings, setExpandedFindings] = useState(new Set());
-  const [history, setHistory] = useState([
-    { url: "https://social.plus", date: "2 min ago", score: 72 },
-    { url: "https://social.plus/product", date: "1 hour ago", score: 81 },
-  ]);
-  const fileInputRef = useRef(null);
-  const docInputRef = useRef(null);
+      // Derived from analysis result
+      const findings = analysisResult?.findings || [];
+      const dimensions = analysisResult?.dimensions || [];
+      const terms = analysisResult?.terms || { approved: [], forbidden: [] };
+      const overallScore = analysisResult?.overallScore || 0;
+      const criticalCount = findings.filter(f => f.severity === "critical").length;
+      const warningCount = findings.filter(f => f.severity === "warning").length;
+      const suggestionCount = findings.filter(f => f.severity === "suggestion").length;
 
-  const criticalCount = MOCK_FINDINGS.filter(f => f.severity === "critical").length;
-  const warningCount = MOCK_FINDINGS.filter(f => f.severity === "warning").length;
-  const suggestionCount = MOCK_FINDINGS.filter(f => f.severity === "suggestion").length;
-  const overallScore = 72;
+      const filteredFindings = findings.filter(f => {
+        if (severityFilter !== "all" && f.severity !== severityFilter) return false;
+        if (categoryFilter !== "all" && f.category !== categoryFilter) return false;
+        return true;
+      });
 
-  const filteredFindings = MOCK_FINDINGS.filter(f => {
-    if (severityFilter !== "all" && f.severity !== severityFilter) return false;
-    if (categoryFilter !== "all" && f.category !== categoryFilter) return false;
-    return true;
-  });
+      const categories = [...new Set(findings.map(f => f.category))];
 
-  const categories = [...new Set(MOCK_FINDINGS.map(f => f.category))];
+      const toggleFinding = (id) => {
+        setExpandedFindings(prev => {
+          const next = new Set(prev);
+          next.has(id) ? next.delete(id) : next.add(id);
+          return next;
+        });
+      };
 
-  const toggleFinding = (id) => {
-    setExpandedFindings(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
+      // ─── File Upload Handler ────────────────────
+      const handleFileUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadedFileName(file.name);
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          let text = ev.target.result;
+          // If HTML, extract text content
+          if (file.name.endsWith(".html") || file.name.endsWith(".htm")) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, "text/html");
+            text = doc.body.textContent || "";
+          }
+          setUploadedFileContent(text);
+        };
+        reader.readAsText(file);
+      };
 
-  const handleAnalyze = () => {
-    setAnalyzing(true);
-    setTimeout(() => {
-      setAnalyzing(false);
-      setView("dashboard");
-    }, 2200);
-  };
+      // ─── Real Analysis Handler ──────────────────
+      const handleAnalyze = async (urlOverride) => {
+        setAnalyzing(true);
+        setError(null);
+        setAnalyzeStep(0);
 
-  const handleQuickPage = (url) => {
-    setUrlValue(url);
-    setInputMode("url");
-  };
+        // Animate steps
+        const stepTimer = setInterval(() => {
+          setAnalyzeStep(prev => Math.min(prev + 1, 3));
+        }, 2000);
 
-  const getScoreColor = (score) => {
-    if (score >= 80) return "text-emerald-400";
-    if (score >= 60) return "text-amber-400";
-    return "text-red-400";
-  };
+        try {
+          let content = "";
+          let sourceUrl = null;
+          let label = "";
 
-  const getScoreRingColor = (score) => {
-    if (score >= 80) return "#34d399";
-    if (score >= 60) return "#fbbf24";
-    return "#f87171";
-  };
+          if (inputMode === "url") {
+            const url = urlOverride || urlValue.trim();
+            if (!url) throw new Error("Please enter a URL");
+            sourceUrl = url;
+            label = sourceUrl.replace("https://", "");
 
-  const bg = darkMode ? "bg-zinc-950" : "bg-gray-50";
-  const cardBg = darkMode ? "bg-zinc-900" : "bg-white";
-  const borderColor = darkMode ? "border-zinc-800" : "border-gray-200";
-  const textPrimary = darkMode ? "text-zinc-100" : "text-gray-900";
-  const textSecondary = darkMode ? "text-zinc-400" : "text-gray-500";
-  const textMuted = darkMode ? "text-zinc-500" : "text-gray-400";
-  const inputBg = darkMode ? "bg-zinc-800" : "bg-gray-100";
-  const inputBorder = darkMode ? "border-zinc-700" : "border-gray-300";
-  const hoverBg = darkMode ? "hover:bg-zinc-800" : "hover:bg-gray-100";
+            // Step 1: Extract content from URL
+            setAnalyzeStep(0);
+            const extractRes = await fetch(`${WORKER_URL}/extract`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url: sourceUrl }),
+            });
+            if (!extractRes.ok) {
+              const err = await extractRes.json().catch(() => ({}));
+              throw new Error(err.error || `Failed to extract content (${extractRes.status})`);
+            }
+            const extracted = await extractRes.json();
+            content = extracted.content;
+            if (!content) throw new Error("No content could be extracted from this URL");
+          } else if (inputMode === "paste") {
+            if (!pasteValue.trim()) throw new Error("Please paste some content");
+            content = pasteValue;
+            label = contentLabel || "Pasted content";
+          } else if (inputMode === "upload") {
+            if (!uploadedFileContent) throw new Error("Please upload a file first");
+            content = uploadedFileContent;
+            label = uploadedFileName;
+          }
 
-  // ─── Analyzing Overlay ─────────────────────
-  const AnalyzingOverlay = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className={`${cardBg} rounded-2xl p-10 flex flex-col items-center gap-6 shadow-2xl max-w-sm w-full mx-4`}>
-        <div className="relative w-20 h-20">
-          <div className="absolute inset-0 rounded-full border-4 border-zinc-700 opacity-30" />
-          <div className="absolute inset-0 rounded-full border-4 border-t-violet-500 animate-spin" />
-          <div className="absolute inset-3 rounded-full border-4 border-zinc-700 opacity-20" />
-          <div className="absolute inset-3 rounded-full border-4 border-t-violet-400 animate-spin" style={{ animationDirection: "reverse", animationDuration: "1.5s" }} />
-        </div>
-        <div className="text-center">
-          <p className={`text-lg font-semibold ${textPrimary}`}>Analyzing content...</p>
-          <p className={`text-sm ${textSecondary} mt-2`}>Checking against messaging framework</p>
-        </div>
-        <div className="w-full space-y-2">
-          {["Extracting content", "Checking terminology", "Analyzing hierarchy", "Scoring positioning"].map((step, i) => (
-            <div key={step} className="flex items-center gap-3">
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center ${i < 3 ? "bg-violet-500/20" : "bg-zinc-700/40"}`}>
-                {i < 3 ? <CheckCircle size={12} className="text-violet-400" /> : <div className="w-2 h-2 rounded-full bg-zinc-500 animate-pulse" />}
-              </div>
-              <span className={`text-sm ${i < 3 ? textSecondary : textMuted}`}>{step}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+          // Step 2-3: Analyze content
+          setAnalyzeStep(1);
+          const analyzeRes = await fetch(`${WORKER_URL}/analyze`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content,
+              contentType,
+              sourceUrl,
+              mode: analysisMode,
+            }),
+          });
 
-  // ─── Score Ring ─────────────────────────────
-  const ScoreRing = ({ score, size = 140 }) => {
-    const r = (size - 16) / 2;
-    const circ = 2 * Math.PI * r;
-    const offset = circ - (score / 100) * circ;
-    return (
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="-rotate-90">
-          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={darkMode ? "#27272a" : "#e5e7eb"} strokeWidth="8" />
-          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={getScoreRingColor(score)} strokeWidth="8" strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset} style={{ transition: "stroke-dashoffset 1s ease" }} />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-3xl font-bold ${getScoreColor(score)}`}>{score}</span>
-          <span className={`text-xs ${textMuted}`}>/ 100</span>
-        </div>
-      </div>
-    );
-  };
+          if (!analyzeRes.ok) {
+            const err = await analyzeRes.json().catch(() => ({}));
+            throw new Error(err.error || `Analysis failed (${analyzeRes.status})`);
+          }
 
-  // ─── Finding Card ──────────────────────────
-  const FindingCard = ({ finding }) => {
-    const config = SEVERITY_CONFIG[finding.severity];
-    const Icon = config.icon;
-    const expanded = expandedFindings.has(finding.id);
-    return (
-      <div className={`${cardBg} border ${borderColor} rounded-xl overflow-hidden transition-all`}>
-        <button onClick={() => toggleFinding(finding.id)} className={`w-full flex items-start gap-3 p-4 text-left ${hoverBg} transition-colors`}>
-          <div className={`mt-0.5 p-1.5 rounded-lg ${config.bg}`}>
-            <Icon size={14} className={config.text} />
+          const result = await analyzeRes.json();
+          setAnalysisResult(result);
+          setAnalyzedLabel(label);
+          setExpandedFindings(new Set());
+          setSeverityFilter("all");
+          setCategoryFilter("all");
+          setView("dashboard");
+
+          // Save to history
+          const entry = {
+            url: label,
+            date: new Date().toLocaleString(),
+            score: result.overallScore,
+          };
+          const updated = [entry, ...history].slice(0, 20);
+          setHistory(updated);
+          localStorage.setItem("lighthouse-history", JSON.stringify(updated));
+
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          clearInterval(stepTimer);
+          setAnalyzing(false);
+        }
+      };
+
+      const handleQuickPage = (url) => {
+        setUrlValue(url);
+        setInputMode("url");
+      };
+
+      // Quick page auto-analyze — pass URL directly to avoid stale state race
+      const [pendingQuickUrl, setPendingQuickUrl] = useState(null);
+      const handleQuickAnalyze = (url) => {
+        setUrlValue(url);
+        setInputMode("url");
+        setPendingQuickUrl(url);
+      };
+      useEffect(() => {
+        if (pendingQuickUrl) {
+          setPendingQuickUrl(null);
+          handleAnalyze(pendingQuickUrl);
+        }
+      }, [pendingQuickUrl]);
+
+      const getScoreColor = (score) => {
+        if (score >= 80) return "text-status-green";
+        if (score >= 60) return "text-status-orange";
+        return "text-status-red";
+      };
+
+      const getScoreRingColor = (score) => {
+        if (score >= 80) return "#1DC497";
+        if (score >= 60) return "#F66005";
+        return "#FF305A";
+      };
+
+      const bg = darkMode ? "bg-surface-0" : "bg-gray-50";
+      const cardBg = darkMode ? "bg-surface-1" : "bg-white";
+      const borderColor = darkMode ? "border-bdark" : "border-gray-200";
+      const textPrimary = darkMode ? "text-white" : "text-gray-900";
+      const textSecondary = darkMode ? "text-txt-secondary" : "text-gray-500";
+      const textMuted = darkMode ? "text-txt-muted" : "text-gray-400";
+      const inputBg = darkMode ? "bg-surface-2" : "bg-gray-100";
+      const inputBorder = darkMode ? "border-bdark-hover" : "border-gray-300";
+      const hoverBg = darkMode ? "hover:bg-surface-2" : "hover:bg-gray-100";
+
+      // ─── Error Banner ──────────────────────────
+      const ErrorBanner = () => error ? (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-status-red/90 text-white px-4 py-3 flex items-center justify-between" style={{ backdropFilter: "blur(8px)" }}>
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} />
+            <span className="text-sm">{error}</span>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${config.bg} ${config.text}`}>{config.label}</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? "bg-zinc-800 text-zinc-400" : "bg-gray-100 text-gray-500"}`}>{finding.category}</span>
-              <span className={`text-xs ${textMuted}`}>· {finding.location}</span>
-            </div>
-            <p className={`text-sm font-medium ${textPrimary} mt-1.5`}>
-              {finding.text} <span className={textSecondary}>— {finding.explanation.slice(0, 80)}...</span>
-            </p>
-          </div>
-          <ChevronRight size={16} className={`${textMuted} mt-1 transition-transform ${expanded ? "rotate-90" : ""}`} />
-        </button>
-        {expanded && (
-          <div className={`px-4 pb-4 pt-0 border-t ${borderColor}`}>
-            <div className="pt-4 space-y-4">
-              <div>
-                <p className={`text-xs font-medium ${textMuted} uppercase tracking-wide mb-1`}>Explanation</p>
-                <p className={`text-sm ${textSecondary} leading-relaxed`}>{finding.explanation}</p>
-              </div>
-              <div>
-                <p className={`text-xs font-medium ${textMuted} uppercase tracking-wide mb-1`}>Doc Reference</p>
-                <p className={`text-sm text-violet-400`}>{finding.docRef}</p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className={`p-3 rounded-lg ${darkMode ? "bg-red-500/5 border border-red-500/20" : "bg-red-50 border border-red-200"}`}>
-                  <p className={`text-xs font-medium text-red-400 mb-1`}>Current</p>
-                  <p className={`text-sm ${textSecondary}`}>{finding.original}</p>
-                </div>
-                <div className={`p-3 rounded-lg ${darkMode ? "bg-emerald-500/5 border border-emerald-500/20" : "bg-emerald-50 border border-emerald-200"}`}>
-                  <p className={`text-xs font-medium text-emerald-400 mb-1`}>Suggested</p>
-                  <p className={`text-sm ${textSecondary}`}>{finding.revised}</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button className="text-xs px-3 py-1.5 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 transition-colors">Copy suggestion</button>
-                <button className={`text-xs px-3 py-1.5 rounded-lg ${darkMode ? "bg-zinc-800 text-zinc-400 hover:bg-zinc-700" : "bg-gray-100 text-gray-500 hover:bg-gray-200"} transition-colors`}>Dismiss</button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // ─── Input View ────────────────────────────
-  const InputView = () => (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div className="text-center pt-6 pb-2">
-        <h1 className={`text-2xl font-bold ${textPrimary}`}>Analyze Content</h1>
-        <p className={`${textSecondary} mt-1`}>Check any content against your messaging framework</p>
-      </div>
-
-      {/* Analysis Mode Selector */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-        {ANALYSIS_MODES.map(mode => (
-          <button key={mode.id} onClick={() => setAnalysisMode(mode.id)}
-            className={`p-3 rounded-xl border text-center transition-all ${analysisMode === mode.id 
-              ? `border-violet-500/50 ${darkMode ? "bg-violet-500/10" : "bg-violet-50"}` 
-              : `${borderColor} ${cardBg} ${hoverBg}`}`}>
-            <mode.icon size={18} className={`mx-auto mb-1.5 ${analysisMode === mode.id ? "text-violet-400" : textMuted}`} />
-            <p className={`text-xs font-medium ${analysisMode === mode.id ? "text-violet-400" : textSecondary}`}>{mode.label}</p>
-          </button>
-        ))}
-      </div>
-
-      {/* Input Mode Tabs */}
-      <div className={`${cardBg} border ${borderColor} rounded-2xl overflow-hidden`}>
-        <div className={`flex border-b ${borderColor}`}>
-          {[
-            { id: "url", label: "URL / Link", icon: Link },
-            { id: "upload", label: "Upload File", icon: Upload },
-            { id: "paste", label: "Paste Text", icon: Clipboard },
-          ].map(tab => (
-            <button key={tab.id} onClick={() => setInputMode(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3.5 text-sm font-medium transition-colors ${
-                inputMode === tab.id 
-                  ? `${darkMode ? "bg-zinc-800" : "bg-gray-100"} ${textPrimary} border-b-2 border-violet-500` 
-                  : `${textMuted} ${hoverBg}`}`}>
-              <tab.icon size={16} />
-              {tab.label}
+          <div className="flex items-center gap-2">
+            <button onClick={() => { setError(null); handleAnalyze(); }}
+              className="text-xs px-3 py-1 rounded-lg bg-white/20 hover:bg-white/30 transition-colors" style={{ borderRadius: 8 }}>
+              Retry
             </button>
-          ))}
+            <button onClick={() => setError(null)} className="text-white/70 hover:text-white">
+              <X size={16} />
+            </button>
+          </div>
         </div>
+      ) : null;
 
-        <div className="p-6">
-          {inputMode === "url" && (
-            <div className="space-y-4">
-              <div className="relative">
-                <Globe size={18} className={`absolute left-4 top-1/2 -translate-y-1/2 ${textMuted}`} />
-                <input
-                  type="text" value={urlValue} onChange={e => setUrlValue(e.target.value)}
-                  placeholder="Paste URL — webpage, Google Doc, Sheet, Slides, or Figma link..."
-                  className={`w-full pl-11 pr-4 py-3.5 rounded-xl ${inputBg} border ${inputBorder} ${textPrimary} text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500/40 placeholder:${textMuted}`}
-                />
+      // ─── Analyzing Overlay ─────────────────────
+      const AnalyzingOverlay = () => (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className={`${cardBg} rounded-2xl p-10 flex flex-col items-center gap-6 modal-elevated max-w-sm w-full mx-4`}>
+            <div className="relative w-20 h-20">
+              <div className="absolute inset-0 rounded-full border-4 border-bdark-hover opacity-30" />
+              <div className="absolute inset-0 rounded-full border-4 border-t-brand-blue animate-spin" />
+              <div className="absolute inset-3 rounded-full border-4 border-bdark-hover opacity-20" />
+              <div className="absolute inset-3 rounded-full border-4 border-t-status-sky animate-spin" style={{ animationDirection: "reverse", animationDuration: "1.5s" }} />
+            </div>
+            <div className="text-center">
+              <p className={`text-lg font-semibold ${textPrimary}`}>Analyzing content...</p>
+              <p className={`text-sm ${textSecondary} mt-2`}>Checking against messaging framework</p>
+            </div>
+            <div className="w-full space-y-2">
+              {["Extracting content", "Checking terminology", "Analyzing hierarchy & tone", "Scoring dimensions"].map((step, i) => (
+                <div key={step} className="flex items-center gap-3">
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${i <= analyzeStep ? "bg-brand-blue/20" : "bg-surface-2/40"}`}>
+                    {i <= analyzeStep ? <CheckCircle size={12} className="text-brand-blue" /> : <div className="w-2 h-2 rounded-full bg-txt-muted animate-pulse" />}
+                  </div>
+                  <span className={`text-sm ${i <= analyzeStep ? textSecondary : textMuted}`}>{step}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+
+      // ─── Score Ring ─────────────────────────────
+      const ScoreRing = ({ score, size = 140 }) => {
+        const r = (size - 16) / 2;
+        const circ = 2 * Math.PI * r;
+        const offset = circ - (score / 100) * circ;
+        return (
+          <div className="relative" style={{ width: size, height: size }}>
+            <svg width={size} height={size} className="-rotate-90">
+              <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={darkMode ? "#272727" : "#e5e7eb"} strokeWidth="8" />
+              <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={getScoreRingColor(score)} strokeWidth="8" strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset} style={{ transition: "stroke-dashoffset 1s ease" }} />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className={`text-3xl font-bold ${getScoreColor(score)}`}>{score}</span>
+              <span className={`text-xs ${textMuted}`}>/ 100</span>
+            </div>
+          </div>
+        );
+      };
+
+      // ─── Finding Card ──────────────────────────
+      const FindingCard = ({ finding }) => {
+        const config = SEVERITY_CONFIG[finding.severity];
+        const Icon = config.icon;
+        const expanded = expandedFindings.has(finding.id);
+        return (
+          <div className={`${cardBg} border ${borderColor} rounded-xl overflow-hidden transition-all ${darkMode ? "card-elevated" : ""}`}>
+            <button onClick={() => toggleFinding(finding.id)} className={`w-full flex items-start gap-3 p-4 text-left ${hoverBg} transition-colors`}>
+              <div className={`mt-0.5 p-1.5 rounded-lg ${config.bg}`}>
+                <Icon size={14} className={config.text} />
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {["Google Docs", "Google Sheets", "Google Slides", "Figma", "Webpage"].map(type => (
-                  <span key={type} className={`text-xs px-2.5 py-1 rounded-full ${darkMode ? "bg-zinc-800 text-zinc-500" : "bg-gray-100 text-gray-400"}`}>
-                    {type} ✓
-                  </span>
-                ))}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${config.bg} ${config.text}`}>{config.label}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? "bg-surface-2 text-txt-secondary" : "bg-gray-100 text-gray-500"}`}>{finding.category}</span>
+                  <span className={`text-xs ${textMuted}`}>{finding.location ? `· ${finding.location}` : ""}</span>
+                </div>
+                <p className={`text-sm font-medium ${textPrimary} mt-1.5`}>
+                  {finding.text} <span className={textSecondary}>{finding.explanation ? `— ${finding.explanation.slice(0, 80)}...` : ""}</span>
+                </p>
               </div>
-              {/* Quick Pages */}
-              <div>
-                <p className={`text-xs font-medium ${textMuted} uppercase tracking-wide mb-2`}>Quick check — social.plus pages</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {QUICK_PAGES.map(page => (
-                    <button key={page.url} onClick={() => handleQuickPage(page.url)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-left ${inputBg} ${hoverBg} border ${inputBorder} transition-colors`}>
-                      <span className="text-sm">{page.icon}</span>
-                      <span className={`text-xs ${textSecondary} truncate`}>{page.label}</span>
+              <ChevronRight size={16} className={`${textMuted} mt-1 transition-transform ${expanded ? "rotate-90" : ""}`} />
+            </button>
+            {expanded && (
+              <div className={`px-4 pb-4 pt-0 border-t ${borderColor}`}>
+                <div className="pt-4 space-y-4">
+                  <div>
+                    <p className={`text-xs font-medium ${textMuted} uppercase tracking-wider mb-1`}>Explanation</p>
+                    <p className={`text-sm ${textSecondary} leading-relaxed`}>{finding.explanation}</p>
+                  </div>
+                  <div>
+                    <p className={`text-xs font-medium ${textMuted} uppercase tracking-wider mb-1`}>Doc Reference</p>
+                    <p className={`text-sm text-brand-blue`}>{finding.docRef}</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className={`p-3 rounded-lg ${darkMode ? "bg-status-red/5 border border-status-red/20" : "bg-red-50 border border-red-200"}`}>
+                      <p className={`text-xs font-medium text-status-red mb-1`}>Current</p>
+                      <p className={`text-sm ${textSecondary}`}>{finding.original}</p>
+                    </div>
+                    <div className={`p-3 rounded-lg ${darkMode ? "bg-status-green/5 border border-status-green/20" : "bg-green-50 border border-green-200"}`}>
+                      <p className={`text-xs font-medium text-status-green mb-1`}>Suggested</p>
+                      <p className={`text-sm ${textSecondary}`}>{finding.revised}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => navigator.clipboard.writeText(finding.revised)}
+                      className="text-xs px-3 py-1.5 bg-brand-blue/10 text-brand-blue hover:bg-brand-blue/20 transition-colors" style={{ borderRadius: 8 }}>Copy suggestion</button>
+                    <button className={`text-xs px-3 py-1.5 ${darkMode ? "bg-surface-2 text-txt-secondary hover:bg-bdark-hover" : "bg-gray-100 text-gray-500 hover:bg-gray-200"} transition-colors`} style={{ borderRadius: 8 }}>Dismiss</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      // ─── Input View ────────────────────────────
+      const InputView = () => (
+        <div className="max-w-3xl mx-auto space-y-6">
+          <div className="text-center pt-6 pb-2">
+            <h1 className={`text-2xl font-bold ${textPrimary}`}>Analyze Content</h1>
+            <p className={`${textSecondary} mt-1`}>Check any content against your messaging framework</p>
+          </div>
+
+          {/* Analysis Mode Selector */}
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+            {ANALYSIS_MODES.map(mode => (
+              <button key={mode.id} onClick={() => setAnalysisMode(mode.id)}
+                className={`p-3 rounded-xl border text-center transition-all ${analysisMode === mode.id
+                  ? `border-brand-blue/50 ${darkMode ? "bg-brand-blue/10" : "bg-brand-blue/5"}`
+                  : `${borderColor} ${cardBg} ${hoverBg}`}`}>
+                <mode.icon size={18} className={`mx-auto mb-1.5 ${analysisMode === mode.id ? "text-brand-blue" : textMuted}`} />
+                <p className={`text-xs font-medium ${analysisMode === mode.id ? "text-brand-blue" : textSecondary}`}>{mode.label}</p>
+              </button>
+            ))}
+          </div>
+
+          {/* Input Mode Tabs */}
+          <div className={`${cardBg} border ${borderColor} rounded-2xl overflow-hidden ${darkMode ? "card-elevated" : ""}`}>
+            <div className={`flex border-b ${borderColor}`}>
+              {[
+                { id: "url", label: "URL / Link", icon: Link },
+                { id: "upload", label: "Upload File", icon: Upload },
+                { id: "paste", label: "Paste Text", icon: Clipboard },
+              ].map(tab => (
+                <button key={tab.id} onClick={() => setInputMode(tab.id)}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3.5 text-sm font-medium transition-colors ${
+                    inputMode === tab.id
+                      ? `${darkMode ? "bg-surface-2" : "bg-gray-100"} ${textPrimary} border-b-2 border-brand-blue`
+                      : `${textMuted} ${hoverBg}`}`}>
+                  <tab.icon size={16} />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="p-6">
+              {inputMode === "url" && (
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Globe size={18} className={`absolute left-4 top-1/2 -translate-y-1/2 ${textMuted}`} />
+                    <input
+                      type="text" value={urlValue} onChange={e => setUrlValue(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && handleAnalyze()}
+                      placeholder="Paste URL — webpage, Google Doc, Sheet, Slides, or Figma link..."
+                      className={`w-full pl-11 pr-4 py-3.5 rounded-xl ${inputBg} border ${inputBorder} ${textPrimary} text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/40 focus:border-brand-blue/40 placeholder:${textMuted}`}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["Google Docs", "Google Sheets", "Google Slides", "Figma", "Webpage"].map(type => (
+                      <span key={type} className={`text-xs px-2.5 py-1 rounded-full ${darkMode ? "bg-surface-2 text-txt-muted" : "bg-gray-100 text-gray-400"}`}>
+                        {type} ✓
+                      </span>
+                    ))}
+                  </div>
+                  {/* Quick Pages */}
+                  <div>
+                    <p className={`text-xs font-medium ${textMuted} uppercase tracking-wider mb-2`}>Quick check — social.plus pages</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {QUICK_PAGES.map(page => (
+                        <button key={page.url} onClick={() => handleQuickPage(page.url)}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-left ${inputBg} ${hoverBg} border ${inputBorder} transition-colors`}>
+                          <span className="text-sm">{page.icon}</span>
+                          <span className={`text-xs ${textSecondary} truncate`}>{page.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {inputMode === "upload" && (
+                <div className="space-y-4">
+                  <button onClick={() => fileInputRef.current?.click()}
+                    className={`w-full border-2 border-dashed ${borderColor} rounded-xl p-10 text-center ${hoverBg} transition-colors group`}>
+                    <FileUp size={32} className={`mx-auto mb-3 ${textMuted} group-hover:text-brand-blue transition-colors`} />
+                    {uploadedFileName ? (
+                      <>
+                        <p className={`text-sm font-medium ${textPrimary}`}>{uploadedFileName}</p>
+                        <p className={`text-xs ${textMuted} mt-1`}>{uploadedFileContent.length} characters loaded</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className={`text-sm font-medium ${textPrimary}`}>Drop files here or click to browse</p>
+                        <p className={`text-xs ${textMuted} mt-1`}>.md, .txt, .html, .csv</p>
+                      </>
+                    )}
+                  </button>
+                  <input ref={fileInputRef} type="file" className="hidden" accept=".md,.txt,.html,.csv" onChange={handleFileUpload} />
+                </div>
+              )}
+
+              {inputMode === "paste" && (
+                <div className="space-y-4">
+                  <div className="flex gap-3">
+                    <select value={contentType} onChange={e => setContentType(e.target.value)}
+                      className={`px-3 py-2 rounded-lg ${inputBg} border ${inputBorder} ${textPrimary} text-sm focus:outline-none`}>
+                      {CONTENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <input type="text" value={contentLabel} onChange={e => setContentLabel(e.target.value)}
+                      placeholder="Label (e.g. 'Homepage hero draft v2')"
+                      className={`flex-1 px-3 py-2 rounded-lg ${inputBg} border ${inputBorder} ${textPrimary} text-sm focus:outline-none placeholder:${textMuted}`} />
+                  </div>
+                  <textarea value={pasteValue} onChange={e => setPasteValue(e.target.value)}
+                    placeholder="Paste your content here..."
+                    rows={8}
+                    className={`w-full px-4 py-3 rounded-xl ${inputBg} border ${inputBorder} ${textPrimary} text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/40 resize-none placeholder:${textMuted}`} />
+                  <div className="flex justify-between">
+                    <span className={`text-xs ${textMuted}`}>{pasteValue.length} characters · {pasteValue.split(/\s+/).filter(Boolean).length} words</span>
+                    <button onClick={() => navigator.clipboard.readText().then(t => setPasteValue(t)).catch(() => {})}
+                      className={`text-xs flex items-center gap-1 ${textMuted} hover:text-brand-blue transition-colors`}>
+                      <Clipboard size={12} /> Paste from clipboard
                     </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className={`px-6 pb-6`}>
+              <button id="analyze-btn" onClick={handleAnalyze}
+                className="w-full btn-primary text-white font-medium text-sm flex items-center justify-center gap-2" style={{ height: 44, letterSpacing: "0.01em" }}>
+                <Play size={16} />
+                Run Analysis
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+
+      // ─── Dashboard View ────────────────────────
+      const DashboardView = () => (
+        <div className="space-y-6">
+          {/* Top Bar */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setView("input")} className={`${textMuted} hover:text-brand-blue transition-colors`}>
+                  <ChevronLeft size={18} />
+                </button>
+                <h2 className={`text-lg font-semibold ${textPrimary}`}>{analyzedLabel || "Analysis"}</h2>
+              </div>
+              <p className={`text-sm ${textMuted} ml-6`}>{contentType} · {analysisResult?.mode || "full"} audit · analyzed just now</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => {
+                const blob = new Blob([JSON.stringify(analysisResult, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a"); a.href = url; a.download = "lighthouse-audit.json"; a.click();
+                URL.revokeObjectURL(url);
+              }} className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 ${inputBg} ${textSecondary} ${hoverBg} border ${inputBorder}`}>
+                <Download size={14} /> Export JSON
+              </button>
+              <button onClick={() => {
+                const summary = findings.map(f => `[${f.severity.toUpperCase()}] ${f.text}: ${f.suggestion}`).join("\n");
+                navigator.clipboard.writeText(summary);
+              }} className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 ${inputBg} ${textSecondary} ${hoverBg} border ${inputBorder}`}>
+                <Copy size={14} /> Copy Summary
+              </button>
+              <button onClick={() => setView("input")} className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 btn-primary text-white`}>
+                <RefreshCw size={14} /> New Analysis
+              </button>
+            </div>
+          </div>
+
+          {/* Score + Radar */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className={`${cardBg} border ${borderColor} rounded-2xl p-6 flex flex-col items-center justify-center ${darkMode ? "card-elevated" : ""}`}>
+              <ScoreRing score={overallScore} />
+              <p className={`text-sm font-medium ${textPrimary} mt-4`}>Overall Compliance</p>
+              <p className={`text-xs ${textMuted} mt-1`}>Based on {findings.length} findings</p>
+            </div>
+
+            <div className={`${cardBg} border ${borderColor} rounded-2xl p-6 ${darkMode ? "card-elevated" : ""}`}>
+              <p className={`text-xs font-medium ${textMuted} uppercase tracking-wider mb-4`}>Dimension Scores</p>
+              {RechartsOK && dimensions.length > 0 ? (
+              <RC.ResponsiveContainer width="100%" height={200}>
+                <RC.RadarChart data={dimensions}>
+                  <RC.PolarGrid stroke={darkMode ? "#272727" : "#e5e7eb"} />
+                  <RC.PolarAngleAxis dataKey="dimension" tick={{ fill: darkMode ? "#A0A1A3" : "#717275", fontSize: 12 }} />
+                  <RC.PolarRadiusAxis tick={false} axisLine={false} domain={[0, 100]} />
+                  <RC.Radar dataKey="score" stroke="#3B41EC" fill="#3B41EC" fillOpacity={0.15} strokeWidth={2} />
+                </RC.RadarChart>
+              </RC.ResponsiveContainer>
+              ) : (
+              <div style={{height: 200}} className="flex items-center justify-center">
+                <div className="space-y-2 w-full">
+                  {dimensions.map((d, i) => (
+                    <div key={i} className="flex items-center gap-3 text-sm">
+                      <span className={`w-24 text-right text-xs ${textMuted}`}>{d.dimension}</span>
+                      <div className={`flex-1 h-2 rounded-full ${darkMode ? 'bg-surface-2' : 'bg-gray-200'}`}>
+                        <div className="h-2 rounded-full bg-brand-blue/50" style={{ width: `${d.score}%` }} />
+                      </div>
+                      <span className={`w-8 text-xs ${textMuted}`}>{d.score}</span>
+                    </div>
                   ))}
                 </div>
               </div>
+              )}
             </div>
-          )}
 
-          {inputMode === "upload" && (
-            <div className="space-y-4">
-              <button onClick={() => fileInputRef.current?.click()}
-                className={`w-full border-2 border-dashed ${borderColor} rounded-xl p-10 text-center ${hoverBg} transition-colors group`}>
-                <FileUp size={32} className={`mx-auto mb-3 ${textMuted} group-hover:text-violet-400 transition-colors`} />
-                <p className={`text-sm font-medium ${textPrimary}`}>Drop files here or click to browse</p>
-                <p className={`text-xs ${textMuted} mt-1`}>.md, .txt, .docx, .pdf, .pptx, .csv, .html</p>
-              </button>
-              <input ref={fileInputRef} type="file" className="hidden" accept=".md,.txt,.docx,.pdf,.pptx,.csv,.html" multiple />
-            </div>
-          )}
-
-          {inputMode === "paste" && (
-            <div className="space-y-4">
-              <div className="flex gap-3">
-                <select value={contentType} onChange={e => setContentType(e.target.value)}
-                  className={`px-3 py-2 rounded-lg ${inputBg} border ${inputBorder} ${textPrimary} text-sm focus:outline-none`}>
-                  {CONTENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <input type="text" value={contentLabel} onChange={e => setContentLabel(e.target.value)}
-                  placeholder="Label (e.g. 'Homepage hero draft v2')"
-                  className={`flex-1 px-3 py-2 rounded-lg ${inputBg} border ${inputBorder} ${textPrimary} text-sm focus:outline-none placeholder:${textMuted}`} />
-              </div>
-              <textarea value={pasteValue} onChange={e => setPasteValue(e.target.value)}
-                placeholder="Paste your content here..."
-                rows={8}
-                className={`w-full px-4 py-3 rounded-xl ${inputBg} border ${inputBorder} ${textPrimary} text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 resize-none placeholder:${textMuted}`} />
-              <div className="flex justify-between">
-                <span className={`text-xs ${textMuted}`}>{pasteValue.length} characters · {pasteValue.split(/\s+/).filter(Boolean).length} words</span>
-                <button onClick={() => navigator.clipboard.readText().then(t => setPasteValue(t)).catch(() => {})}
-                  className={`text-xs flex items-center gap-1 ${textMuted} hover:text-violet-400 transition-colors`}>
-                  <Clipboard size={12} /> Paste from clipboard
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className={`px-6 pb-6`}>
-          <button onClick={handleAnalyze}
-            className="w-full py-3.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-medium text-sm transition-colors flex items-center justify-center gap-2">
-            <Play size={16} />
-            Run Analysis
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ─── Dashboard View ────────────────────────
-  const DashboardView = () => (
-    <div className="space-y-6">
-      {/* Top Bar */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setView("input")} className={`${textMuted} hover:text-violet-400 transition-colors`}>
-              <ChevronLeft size={18} />
-            </button>
-            <h2 className={`text-lg font-semibold ${textPrimary}`}>Homepage Analysis</h2>
-          </div>
-          <p className={`text-sm ${textMuted} ml-6`}>social.plus — analyzed just now</p>
-        </div>
-        <div className="flex gap-2">
-          <button className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 ${inputBg} ${textSecondary} ${hoverBg} border ${inputBorder}`}>
-            <Download size={14} /> Export
-          </button>
-          <button className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 ${inputBg} ${textSecondary} ${hoverBg} border ${inputBorder}`}>
-            <Copy size={14} /> Copy Summary
-          </button>
-          <button onClick={() => setView("input")} className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white`}>
-            <RefreshCw size={14} /> New Analysis
-          </button>
-        </div>
-      </div>
-
-      {/* Score + Radar */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className={`${cardBg} border ${borderColor} rounded-2xl p-6 flex flex-col items-center justify-center`}>
-          <ScoreRing score={overallScore} />
-          <p className={`text-sm font-medium ${textPrimary} mt-4`}>Overall Compliance</p>
-          <p className={`text-xs ${textMuted} mt-1`}>Based on {MOCK_FINDINGS.length} findings</p>
-        </div>
-
-        <div className={`${cardBg} border ${borderColor} rounded-2xl p-6`}>
-          <p className={`text-xs font-medium ${textMuted} uppercase tracking-wide mb-4`}>Dimension Scores</p>
-          {RechartsOK ? (
-          <RC.ResponsiveContainer width="100%" height={200}>
-            <RC.RadarChart data={MOCK_RADAR_DATA}>
-              <RC.PolarGrid stroke={darkMode ? "#3f3f46" : "#e5e7eb"} />
-              <RC.PolarAngleAxis dataKey="dimension" tick={{ fill: darkMode ? "#a1a1aa" : "#6b7280", fontSize: 11 }} />
-              <RC.PolarRadiusAxis tick={false} axisLine={false} domain={[0, 100]} />
-              <RC.Radar dataKey="score" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.15} strokeWidth={2} />
-            </RC.RadarChart>
-          </RC.ResponsiveContainer>
-          ) : (
-          <div style={{height: 200}} className="flex items-center justify-center">
-            <div className="space-y-2 w-full">
-              {MOCK_RADAR_DATA.map((d, i) => (
-                <div key={i} className="flex items-center gap-3 text-sm">
-                  <span className={`w-24 text-right text-xs ${textMuted}`}>{d.dimension}</span>
-                  <div className={`flex-1 h-2 rounded-full ${darkMode ? 'bg-zinc-700' : 'bg-gray-200'}`}>
-                    <div className="h-2 rounded-full bg-violet-500" style={{ width: `${d.score}%` }} />
+            <div className={`${cardBg} border ${borderColor} rounded-2xl p-6 space-y-4 ${darkMode ? "card-elevated" : ""}`}>
+              <p className={`text-xs font-medium ${textMuted} uppercase tracking-wider`}>Issue Breakdown</p>
+              {[
+                { label: "Critical", count: criticalCount, config: SEVERITY_CONFIG.critical, filter: "critical" },
+                { label: "Warnings", count: warningCount, config: SEVERITY_CONFIG.warning, filter: "warning" },
+                { label: "Suggestions", count: suggestionCount, config: SEVERITY_CONFIG.suggestion, filter: "suggestion" },
+              ].map(item => (
+                <button key={item.label} onClick={() => setSeverityFilter(severityFilter === item.filter ? "all" : item.filter)}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl ${item.config.bg} border ${item.config.border} transition-colors hover:opacity-80`}>
+                  <div className="flex items-center gap-3">
+                    <item.config.icon size={18} className={item.config.text} />
+                    <span className={`text-sm font-medium ${item.config.text}`}>{item.label}</span>
                   </div>
-                  <span className={`w-8 text-xs ${textMuted}`}>{d.score}</span>
-                </div>
+                  <span className={`text-2xl font-bold ${item.config.text}`}>{item.count}</span>
+                </button>
               ))}
-            </div>
-          </div>
-          )}
-        </div>
-
-        <div className={`${cardBg} border ${borderColor} rounded-2xl p-6 space-y-4`}>
-          <p className={`text-xs font-medium ${textMuted} uppercase tracking-wide`}>Issue Breakdown</p>
-          {[
-            { label: "Critical", count: criticalCount, config: SEVERITY_CONFIG.critical },
-            { label: "Warnings", count: warningCount, config: SEVERITY_CONFIG.warning },
-            { label: "Suggestions", count: suggestionCount, config: SEVERITY_CONFIG.suggestion },
-          ].map(item => (
-            <button key={item.label} onClick={() => setSeverityFilter(item.label.toLowerCase().replace("s", "").replace("warning", "warning"))}
-              className={`w-full flex items-center justify-between p-3 rounded-xl ${item.config.bg} border ${item.config.border} transition-colors hover:opacity-80`}>
-              <div className="flex items-center gap-3">
-                <item.config.icon size={18} className={item.config.text} />
-                <span className={`text-sm font-medium ${item.config.text}`}>{item.label}</span>
+              <div className={`pt-2 border-t ${borderColor}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs ${textMuted}`}>Approved terms found</span>
+                  <span className={`text-sm font-medium text-status-green`}>{terms.approved.filter(t => t.found).length}/{terms.approved.length}</span>
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <span className={`text-xs ${textMuted}`}>Forbidden terms found</span>
+                  <span className={`text-sm font-medium text-status-red`}>{terms.forbidden.filter(t => t.found).length}</span>
+                </div>
               </div>
-              <span className={`text-2xl font-bold ${item.config.text}`}>{item.count}</span>
-            </button>
-          ))}
-          <div className={`pt-2 border-t ${borderColor}`}>
-            <div className="flex items-center justify-between">
-              <span className={`text-xs ${textMuted}`}>Approved terms found</span>
-              <span className={`text-sm font-medium text-emerald-400`}>{MOCK_TERMS.approved.filter(t => t.found).length}/{MOCK_TERMS.approved.length}</span>
-            </div>
-            <div className="flex items-center justify-between mt-1">
-              <span className={`text-xs ${textMuted}`}>Forbidden terms found</span>
-              <span className={`text-sm font-medium text-red-400`}>{MOCK_TERMS.forbidden.filter(t => t.found).length}</span>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* View Tabs */}
-      <div className={`flex items-center gap-1 p-1 rounded-xl ${inputBg} w-fit`}>
-        {[
-          { id: "dashboard", icon: List, label: "Findings" },
-          { id: "annotated", icon: Eye, label: "Annotated" },
-          { id: "sidebyside", icon: Columns, label: "Side by Side" },
-          { id: "heatmap", icon: Grid3X3, label: "Terminology" },
-        ].map(tab => (
-          <button key={tab.id} onClick={() => setView(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-              view === tab.id 
-                ? `${cardBg} ${textPrimary} shadow-sm` 
-                : `${textMuted} ${hoverBg}`}`}>
-            <tab.icon size={14} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Findings Filters */}
-      {(view === "dashboard") && (
-        <>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Filter size={14} className={textMuted} />
-            <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value)}
-              className={`px-2.5 py-1.5 rounded-lg text-xs ${inputBg} border ${inputBorder} ${textSecondary}`}>
-              <option value="all">All severities</option>
-              <option value="critical">Critical</option>
-              <option value="warning">Warning</option>
-              <option value="suggestion">Suggestion</option>
-            </select>
-            <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
-              className={`px-2.5 py-1.5 rounded-lg text-xs ${inputBg} border ${inputBorder} ${textSecondary}`}>
-              <option value="all">All categories</option>
-              {categories.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <span className={`text-xs ${textMuted}`}>{filteredFindings.length} findings</span>
-          </div>
-          <div className="space-y-3">
-            {filteredFindings.map(f => <FindingCard key={f.id} finding={f} />)}
-          </div>
-        </>
-      )}
-
-      {/* Annotated View */}
-      {view === "annotated" && (
-        <div className={`${cardBg} border ${borderColor} rounded-2xl p-6`}>
-          <div className="flex items-center gap-3 mb-4 flex-wrap">
-            <span className={`text-xs ${textMuted}`}>Highlights:</span>
-            {Object.entries(SEVERITY_CONFIG).map(([key, config]) => (
-              <label key={key} className="flex items-center gap-1.5 cursor-pointer">
-                <div className={`w-3 h-3 rounded-full ${config.color}`} />
-                <span className={`text-xs ${textSecondary}`}>{config.label}</span>
-              </label>
+          {/* View Tabs */}
+          <div className={`flex items-center gap-1 p-1 rounded-xl ${inputBg} w-fit`}>
+            {[
+              { id: "dashboard", icon: List, label: "Findings" },
+              { id: "heatmap", icon: Grid3X3, label: "Terminology" },
+            ].map(tab => (
+              <button key={tab.id} onClick={() => setView(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  view === tab.id
+                    ? `${cardBg} ${textPrimary} shadow-sm`
+                    : `${textMuted} ${hoverBg}`}`}>
+                <tab.icon size={14} />
+                {tab.label}
+              </button>
             ))}
           </div>
-          <div className={`prose prose-sm max-w-none ${darkMode ? "prose-invert" : ""}`}>
-            <div className={`p-4 rounded-lg ${inputBg} space-y-6 text-sm leading-relaxed ${textSecondary}`}>
-              <div>
-                <p className={`text-xs font-medium ${textMuted} mb-2`}>HERO SECTION</p>
-                <p className={`text-lg font-bold ${textPrimary}`}>Build an in-app community that powers growth</p>
-                <p className="mt-2">
-                  Drive engagement, <span className="bg-red-500/20 text-red-300 px-1 rounded cursor-pointer" title='Forbidden: use "generate insight" instead'>collect data</span> and <span className="bg-amber-500/20 text-amber-300 px-1 rounded cursor-pointer" title="Revenue leads too early in hierarchy">grow revenues</span> – directly inside your app.
+
+          {/* Findings Filters */}
+          {(view === "dashboard") && (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Filter size={14} className={textMuted} />
+                <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value)}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs ${inputBg} border ${inputBorder} ${textSecondary}`}>
+                  <option value="all">All severities</option>
+                  <option value="critical">Critical</option>
+                  <option value="warning">Warning</option>
+                  <option value="suggestion">Suggestion</option>
+                </select>
+                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs ${inputBg} border ${inputBorder} ${textSecondary}`}>
+                  <option value="all">All categories</option>
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <span className={`text-xs ${textMuted}`}>{filteredFindings.length} findings</span>
+              </div>
+              <div className="space-y-3">
+                {filteredFindings.map(f => <FindingCard key={f.id} finding={f} />)}
+                {filteredFindings.length === 0 && (
+                  <div className={`text-center py-12 ${textMuted}`}>
+                    <CheckCircle size={32} className="mx-auto mb-3 text-status-green" />
+                    <p className="text-sm">No findings match your filters</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Heatmap View */}
+          {view === "heatmap" && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className={`${cardBg} border ${borderColor} rounded-2xl p-6 ${darkMode ? "card-elevated" : ""}`}>
+                <div className="flex items-center gap-2 mb-4">
+                  <CheckCircle size={16} className="text-status-green" />
+                  <h3 className={`text-sm font-semibold ${textPrimary}`}>Approved Terms</h3>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {terms.approved.map(t => (
+                    <span key={t.term} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-default ${
+                      t.found
+                        ? "bg-status-green/10 border-status-green/30 text-status-green"
+                        : `${darkMode ? "bg-surface-2 border-bdark-hover text-txt-muted" : "bg-gray-100 border-gray-200 text-gray-400"}`}`}>
+                      {t.term} {t.found ? `(${t.count})` : "—"}
+                    </span>
+                  ))}
+                  {terms.approved.length === 0 && <span className={`text-xs ${textMuted}`}>No terminology data</span>}
+                </div>
+                <p className={`text-xs ${textMuted} mt-4`}>
+                  {terms.approved.filter(t => t.found).length} of {terms.approved.length} approved terms found.
+                  Gray terms are missing from the content.
                 </p>
               </div>
-              <div>
-                <p className={`text-xs font-medium ${textMuted} mb-2`}>TRUST BAR</p>
-                <p>Trusted by some of the <span className="bg-blue-500/20 text-blue-300 px-1 rounded cursor-pointer" title="Typo: should be world's">worlds</span> biggest brands</p>
-              </div>
-              <div>
-                <p className={`text-xs font-medium ${textMuted} mb-2`}>THREE PILLARS</p>
-                <p>Engage · <span className="bg-red-500/20 text-red-300 px-1 rounded cursor-pointer" title='Should be "Analyze" per messaging doc'>Understand</span> · Monetize</p>
-              </div>
-              <div>
-                <p className={`text-xs font-medium ${textMuted} mb-2`}>PLATFORM SECTION</p>
-                <p><span className="bg-amber-500/20 text-amber-300 px-1 rounded cursor-pointer" title='Messaging doc prefers "infrastructure" as primary descriptor'>All-in-one platform</span> — All you need to engage, understand, and monetize.</p>
-              </div>
-              <div>
-                <p className={`text-xs font-medium ${textMuted} mb-2`}>CUSTOMER STORIES</p>
-                <p>Discover how hundreds of companies use social.plus to accelerate app growth and <span className="bg-amber-500/20 text-amber-300 px-1 rounded cursor-pointer" title="Revenue language too early in narrative">unlock new revenue streams</span></p>
-              </div>
-              <div>
-                <p className={`text-xs font-medium ${textMuted} mb-2`}>CLOSING CTA</p>
-                <p><span className="bg-amber-500/20 text-amber-300 px-1 rounded cursor-pointer" title="Generic CTA — should reinforce strategic narrative">Book a call with our sales team and let us help you get started with social.plus</span></p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Side by Side View */}
-      {view === "sidebyside" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className={`${cardBg} border ${borderColor} rounded-2xl p-6`}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className={`text-sm font-semibold ${textPrimary}`}>Current</h3>
-              <span className={`text-xs px-2 py-1 rounded-full bg-red-500/10 text-red-400`}>Score: 72</span>
-            </div>
-            <div className={`space-y-4 text-sm ${textSecondary}`}>
-              <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/15">
-                <p className={`text-xs ${textMuted} mb-1`}>Hero</p>
-                <p className="font-medium">Build an in-app community that powers growth</p>
-                <p className="mt-1">Drive engagement, <strong className="text-red-400">collect data</strong> and <strong className="text-amber-400">grow revenues</strong> – directly inside your app.</p>
-              </div>
-              <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/15">
-                <p className={`text-xs ${textMuted} mb-1`}>Pillar Label</p>
-                <p>Engage · <strong className="text-red-400">Understand</strong> · Monetize</p>
-              </div>
-              <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/15">
-                <p className={`text-xs ${textMuted} mb-1`}>Platform Section</p>
-                <p><strong className="text-amber-400">All-in-one platform</strong></p>
-              </div>
-              <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/15">
-                <p className={`text-xs ${textMuted} mb-1`}>CTA</p>
-                <p><strong className="text-amber-400">Book a call with our sales team and let us help you get started</strong></p>
-              </div>
-            </div>
-          </div>
-          <div className={`${cardBg} border ${borderColor} rounded-2xl p-6`}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className={`text-sm font-semibold ${textPrimary}`}>Suggested</h3>
-              <span className={`text-xs px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400`}>Projected: 89</span>
-            </div>
-            <div className={`space-y-4 text-sm ${textSecondary}`}>
-              <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/15">
-                <p className={`text-xs ${textMuted} mb-1`}>Hero</p>
-                <p className="font-medium">In-app community infrastructure that powers growth</p>
-                <p className="mt-1">Build owned engagement and turn <strong className="text-emerald-400">participation into lasting growth</strong> — directly inside your app.</p>
-              </div>
-              <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/15">
-                <p className={`text-xs ${textMuted} mb-1`}>Pillar Label</p>
-                <p>Engage · <strong className="text-emerald-400">Analyze</strong> · Monetize</p>
-              </div>
-              <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/15">
-                <p className={`text-xs ${textMuted} mb-1`}>Platform Section</p>
-                <p><strong className="text-emerald-400">Complete in-app community infrastructure</strong></p>
-              </div>
-              <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/15">
-                <p className={`text-xs ${textMuted} mb-1`}>CTA</p>
-                <p><strong className="text-emerald-400">See how leading brands are building the next generation of product engagement</strong></p>
-              </div>
-            </div>
-            <button className="w-full mt-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors">
-              Copy All Suggestions
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Heatmap View */}
-      {view === "heatmap" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className={`${cardBg} border ${borderColor} rounded-2xl p-6`}>
-            <div className="flex items-center gap-2 mb-4">
-              <CheckCircle size={16} className="text-emerald-400" />
-              <h3 className={`text-sm font-semibold ${textPrimary}`}>Approved Terms</h3>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {MOCK_TERMS.approved.map(t => (
-                <span key={t.term} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-default ${
-                  t.found 
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" 
-                    : `${darkMode ? "bg-zinc-800 border-zinc-700 text-zinc-500" : "bg-gray-100 border-gray-200 text-gray-400"}`}`}>
-                  {t.term} {t.found ? `(${t.count})` : "—"}
-                </span>
-              ))}
-            </div>
-            <p className={`text-xs ${textMuted} mt-4`}>
-              {MOCK_TERMS.approved.filter(t => t.found).length} of {MOCK_TERMS.approved.length} approved terms found. 
-              Gray terms are missing from the content.
-            </p>
-          </div>
-          <div className={`${cardBg} border ${borderColor} rounded-2xl p-6`}>
-            <div className="flex items-center gap-2 mb-4">
-              <AlertCircle size={16} className="text-red-400" />
-              <h3 className={`text-sm font-semibold ${textPrimary}`}>Forbidden Terms</h3>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {MOCK_TERMS.forbidden.map(t => (
-                <span key={t.term} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-default ${
-                  t.found 
-                    ? "bg-red-500/10 border-red-500/30 text-red-400" 
-                    : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"}`}>
-                  {t.found ? "⚠ " : "✓ "}{t.term} {t.found ? `(${t.count})` : ""}
-                </span>
-              ))}
-            </div>
-            <p className={`text-xs ${textMuted} mt-4`}>
-              {MOCK_TERMS.forbidden.filter(t => t.found).length} forbidden terms detected. 
-              Green terms are correctly absent from the content.
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  // ─── Doc Panel ─────────────────────────────
-  const DocPanel = () => (
-    <div className={`fixed inset-y-0 right-0 w-full max-w-lg z-40 ${cardBg} border-l ${borderColor} shadow-2xl transform transition-transform ${docPanelOpen ? "translate-x-0" : "translate-x-full"}`}>
-      <div className={`flex items-center justify-between p-4 border-b ${borderColor}`}>
-        <h3 className={`text-sm font-semibold ${textPrimary}`}>Messaging Document</h3>
-        <button onClick={() => setDocPanelOpen(false)} className={`${textMuted} hover:${textPrimary}`}>
-          <X size={18} />
-        </button>
-      </div>
-      <div className={`p-4 border-b ${borderColor}`}>
-        <div className={`flex items-center gap-3 p-3 rounded-xl ${inputBg}`}>
-          <FileText size={20} className="text-violet-400" />
-          <div className="flex-1">
-            <p className={`text-sm font-medium ${textPrimary}`}>{messagingDoc.name}</p>
-            <p className={`text-xs ${textMuted}`}>Loaded · 25 sections · 1,091 lines</p>
-          </div>
-          <button onClick={() => docInputRef.current?.click()} className="text-xs text-violet-400 hover:text-violet-300">Replace</button>
-        </div>
-        <input ref={docInputRef} type="file" className="hidden" accept=".md,.txt,.docx" />
-      </div>
-      <div className={`p-4 overflow-y-auto`} style={{ height: "calc(100% - 140px)" }}>
-        <div className="space-y-2">
-          {["0. Document Authority", "1. Company Overview", "2. Vision of the Market", "3. Mission", "4. Our Position", "5. What social.plus Is", "6. What social.plus Is Not", "7. Product Pillars", "9. Core Problems", "10. Value Creation Model", "11. Differentiation", "12. Competitive Context", "13. Target Customer", "14. Buying Committee", "15. Approved Terminology", "16. Forbidden Terminology", "17. Tone of Voice", "18. Writing Style Rules", "19. Claims & Evidence", "20. Messaging Hierarchy", "21. Narrative Structure", "22. Boilerplates", "23. Elevator Pitches", "24. FAQs", "25. Objection Handling"].map((section, i) => (
-            <button key={i} className={`w-full text-left px-3 py-2 rounded-lg text-xs ${textSecondary} ${hoverBg} transition-colors flex items-center gap-2`}>
-              <ChevronRight size={12} className={textMuted} />
-              {section}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  // ─── Sidebar ───────────────────────────────
-  const Sidebar = () => (
-    <div className={`${sidebarOpen ? "w-64" : "w-0 overflow-hidden"} flex-shrink-0 border-r ${borderColor} ${cardBg} transition-all duration-200 flex flex-col`}>
-      <div className="p-4 flex-1 overflow-y-auto">
-        {/* Messaging Doc */}
-        <div className="mb-6">
-          <p className={`text-xs font-medium ${textMuted} uppercase tracking-wider mb-2`}>Source of Truth</p>
-          <button onClick={() => setDocPanelOpen(true)}
-            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl ${inputBg} border ${inputBorder} ${hoverBg} transition-colors text-left`}>
-            <FileText size={16} className="text-violet-400 flex-shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className={`text-xs font-medium ${textPrimary} truncate`}>{messagingDoc.name}</p>
-              <p className={`text-xs ${textMuted}`}>Active · 25 sections</p>
-            </div>
-          </button>
-        </div>
-
-        {/* Quick Pages */}
-        <div className="mb-6">
-          <p className={`text-xs font-medium ${textMuted} uppercase tracking-wider mb-2`}>Quick Check</p>
-          <div className="space-y-1">
-            {QUICK_PAGES.slice(0, 6).map(page => (
-              <button key={page.url} onClick={() => { handleQuickPage(page.url); setView("input"); }}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left ${hoverBg} transition-colors`}>
-                <span className="text-xs">{page.icon}</span>
-                <span className={`text-xs ${textSecondary}`}>{page.label}</span>
-                <ExternalLink size={10} className={`${textMuted} ml-auto opacity-0 group-hover:opacity-100`} />
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* History */}
-        <div>
-          <p className={`text-xs font-medium ${textMuted} uppercase tracking-wider mb-2`}>Recent</p>
-          <div className="space-y-1">
-            {history.map((item, i) => (
-              <button key={i} onClick={() => setView("dashboard")}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left ${hoverBg} transition-colors`}>
-                <Clock size={12} className={textMuted} />
-                <div className="flex-1 min-w-0">
-                  <p className={`text-xs ${textSecondary} truncate`}>{item.url.replace("https://", "")}</p>
-                  <p className={`text-xs ${textMuted}`}>{item.date}</p>
+              <div className={`${cardBg} border ${borderColor} rounded-2xl p-6 ${darkMode ? "card-elevated" : ""}`}>
+                <div className="flex items-center gap-2 mb-4">
+                  <AlertCircle size={16} className="text-status-red" />
+                  <h3 className={`text-sm font-semibold ${textPrimary}`}>Forbidden Terms</h3>
                 </div>
-                <span className={`text-xs font-bold ${getScoreColor(item.score)}`}>{item.score}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ─── Main Layout ───────────────────────────
-  return (
-    <div className={`${bg} min-h-screen flex flex-col`} style={{ fontFamily: "'Inter', -apple-system, sans-serif" }}>
-      {/* Header */}
-      <header className={`h-14 border-b ${borderColor} ${cardBg} flex items-center justify-between px-4 flex-shrink-0 z-30`}>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-1.5 rounded-lg ${hoverBg} ${textMuted} transition-colors`}>
-            <Menu size={18} />
-          </button>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center">
-              <Zap size={14} className="text-white" />
+                <div className="flex flex-wrap gap-2">
+                  {terms.forbidden.map(t => (
+                    <span key={t.term} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-default ${
+                      t.found
+                        ? "bg-status-red/10 border-status-red/30 text-status-red"
+                        : "bg-status-green/10 border-status-green/30 text-status-green"}`}>
+                      {t.found ? "⚠ " : "✓ "}{t.term} {t.found ? `(${t.count})` : ""}
+                    </span>
+                  ))}
+                  {terms.forbidden.length === 0 && <span className={`text-xs ${textMuted}`}>No terminology data</span>}
+                </div>
+                <p className={`text-xs ${textMuted} mt-4`}>
+                  {terms.forbidden.filter(t => t.found).length} forbidden terms detected.
+                  Green terms are correctly absent from the content.
+                </p>
+              </div>
             </div>
-            <span className={`text-sm font-bold ${textPrimary}`}>Lighthouse</span>
-            <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? "bg-violet-500/10 text-violet-400" : "bg-violet-100 text-violet-600"}`}>beta</span>
+          )}
+        </div>
+      );
+
+      // ─── Doc Panel ─────────────────────────────
+      const DocPanel = () => (
+        <div className={`fixed inset-y-0 right-0 w-full max-w-lg z-40 ${darkMode ? "bg-surface-3" : "bg-white"} border-l ${borderColor} modal-elevated transform transition-transform ${docPanelOpen ? "translate-x-0" : "translate-x-full"}`}>
+          <div className={`flex items-center justify-between p-4 border-b ${borderColor}`}>
+            <h3 className={`text-sm font-semibold ${textPrimary}`}>Messaging Guidelines</h3>
+            <button onClick={() => setDocPanelOpen(false)} className={`${textMuted} hover:${textPrimary}`}>
+              <X size={18} />
+            </button>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setDocPanelOpen(true)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs ${inputBg} border ${inputBorder} ${textSecondary} ${hoverBg} transition-colors`}>
-            <BookOpen size={14} />
-            <span className="hidden sm:inline">Messaging Doc</span>
-          </button>
-          <button onClick={() => setDarkMode(!darkMode)}
-            className={`p-2 rounded-lg ${hoverBg} ${textMuted} transition-colors`}>
-            {darkMode ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-          <button onClick={() => setSettingsOpen(true)}
-            className={`p-2 rounded-lg ${hoverBg} ${textMuted} transition-colors`}>
-            <Settings size={16} />
-          </button>
-        </div>
-      </header>
-
-      {/* Body */}
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          {view === "input" ? <InputView /> : <DashboardView />}
-        </main>
-      </div>
-
-      {/* Doc Panel Overlay */}
-      {docPanelOpen && <div className="fixed inset-0 z-30 bg-black/40" onClick={() => setDocPanelOpen(false)} />}
-      <DocPanel />
-
-      {/* Settings Modal */}
-      {settingsOpen && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setSettingsOpen(false)} />
-          <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md ${cardBg} border ${borderColor} rounded-2xl shadow-2xl p-6`}>
-            <div className="flex items-center justify-between mb-6">
-              <h3 className={`text-lg font-semibold ${textPrimary}`}>Settings</h3>
-              <button onClick={() => setSettingsOpen(false)} className={textMuted}><X size={18} /></button>
+          <div className={`p-4 border-b ${borderColor}`}>
+            <div className={`flex items-center gap-3 p-3 rounded-xl ${inputBg}`}>
+              <FileText size={20} className="text-brand-blue" />
+              <div className="flex-1">
+                <p className={`text-sm font-medium ${textPrimary}`}>Brand Guidelines</p>
+                <p className={`text-xs ${textMuted}`}>Live from GitHub · 7 files · Auto-refreshed hourly</p>
+              </div>
             </div>
-            <div className="space-y-4">
+          </div>
+          <div className={`p-4 overflow-y-auto`} style={{ height: "calc(100% - 140px)" }}>
+            <div className="space-y-2">
               {[
-                { label: "Dark mode", desc: "Toggle dark/light theme", checked: darkMode, onChange: () => setDarkMode(!darkMode) },
-                { label: "Show suggestions", desc: "Include rewrite suggestions in findings", checked: true, onChange: () => {} },
-                { label: "Auto-expand critical", desc: "Automatically expand critical findings", checked: false, onChange: () => {} },
-                { label: "Include doc references", desc: "Show messaging doc section references", checked: true, onChange: () => {} },
-              ].map(setting => (
-                <div key={setting.label} className="flex items-center justify-between">
-                  <div>
-                    <p className={`text-sm ${textPrimary}`}>{setting.label}</p>
-                    <p className={`text-xs ${textMuted}`}>{setting.desc}</p>
-                  </div>
-                  <button onClick={setting.onChange} className={`w-10 h-6 rounded-full transition-colors relative ${setting.checked ? "bg-violet-600" : darkMode ? "bg-zinc-700" : "bg-gray-300"}`}>
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${setting.checked ? "left-5" : "left-1"}`} />
-                  </button>
-                </div>
+                { file: "terminology.md", label: "Approved & Forbidden Terms" },
+                { file: "tone.md", label: "Tone of Voice & Writing Style" },
+                { file: "positioning.md", label: "Product Positioning" },
+                { file: "narrative.md", label: "Messaging Hierarchy & Narrative" },
+                { file: "value-story.md", label: "Value Story & Differentiation" },
+                { file: "boilerplates.md", label: "Boilerplates & Templates" },
+                { file: "ui-micro-copy.md", label: "UI Micro-Copy Patterns" },
+              ].map((section) => (
+                <a key={section.file}
+                  href={`https://github.com/cruciate-hub/marketing-team/blob/main/messaging/${section.file}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className={`w-full text-left px-3 py-2 rounded-lg text-xs ${textSecondary} ${hoverBg} transition-colors flex items-center gap-2`}>
+                  <ChevronRight size={12} className={textMuted} />
+                  <span className="flex-1">{section.label}</span>
+                  <ExternalLink size={10} className={textMuted} />
+                </a>
               ))}
             </div>
-            <div className={`mt-6 pt-4 border-t ${borderColor}`}>
-              <p className={`text-xs ${textMuted}`}>Lighthouse v0.1.0 · Brand Messaging Auditor</p>
-              <p className={`text-xs ${textMuted}`}>AI backend: Not connected (UI preview)</p>
+          </div>
+        </div>
+      );
+
+      // ─── Sidebar ───────────────────────────────
+      const Sidebar = () => (
+        <div className={`${sidebarOpen ? "w-64" : "w-0 overflow-hidden"} flex-shrink-0 border-r ${borderColor} ${cardBg} transition-all duration-200 flex flex-col`}>
+          <div className="p-4 flex-1 overflow-y-auto">
+            {/* Messaging Doc */}
+            <div className="mb-6">
+              <p className={`text-xs font-medium ${textMuted} uppercase tracking-wider mb-2`}>Source of Truth</p>
+              <button onClick={() => setDocPanelOpen(true)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl ${inputBg} border ${inputBorder} ${hoverBg} transition-colors text-left`}>
+                <FileText size={16} className="text-brand-blue flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className={`text-xs font-medium ${textPrimary} truncate`}>Brand Guidelines</p>
+                  <p className={`text-xs ${textMuted}`}>Live · 7 files from GitHub</p>
+                </div>
+              </button>
+            </div>
+
+            {/* Quick Pages */}
+            <div className="mb-6">
+              <p className={`text-xs font-medium ${textMuted} uppercase tracking-wider mb-2`}>Quick Check</p>
+              <div className="space-y-1">
+                {QUICK_PAGES.slice(0, 6).map(page => (
+                  <button key={page.url} onClick={() => handleQuickAnalyze(page.url)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left ${hoverBg} transition-colors`}>
+                    <span className="text-xs">{page.icon}</span>
+                    <span className={`text-xs ${textSecondary}`}>{page.label}</span>
+                    <ExternalLink size={10} className={`${textMuted} ml-auto`} />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* History */}
+            <div>
+              <p className={`text-xs font-medium ${textMuted} uppercase tracking-wider mb-2`}>Recent</p>
+              <div className="space-y-1">
+                {history.length === 0 && <p className={`text-xs ${textMuted} px-3`}>No analyses yet</p>}
+                {history.map((item, i) => (
+                  <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg ${hoverBg} transition-colors`}>
+                    <Clock size={12} className={textMuted} />
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs ${textSecondary} truncate`}>{item.url}</p>
+                      <p className={`text-xs ${textMuted}`}>{item.date}</p>
+                    </div>
+                    <span className={`text-xs font-bold ${getScoreColor(item.score)}`}>{item.score}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </>
-      )}
+        </div>
+      );
 
-      {/* Analyzing Overlay */}
-      {analyzing && <AnalyzingOverlay />}
-    </div>
-  );
-}
+      // ─── Main Layout ───────────────────────────
+      return (
+        <div className={`${bg} min-h-screen flex flex-col`} style={{ fontFamily: "'Figtree', 'Inter', sans-serif" }}>
+          <ErrorBanner />
+
+          {/* Header */}
+          <header className={`h-14 border-b ${borderColor} ${cardBg} flex items-center justify-between px-4 flex-shrink-0 z-30`}>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-1.5 rounded-lg ${hoverBg} ${textMuted} transition-colors`}>
+                <Menu size={18} />
+              </button>
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg brand-gradient-bg flex items-center justify-center">
+                  <Zap size={14} className="text-white" />
+                </div>
+                <span className={`text-sm font-bold ${textPrimary}`}>Lighthouse</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue">v1.0</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setDocPanelOpen(true)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs ${inputBg} border ${inputBorder} ${textSecondary} ${hoverBg} transition-colors`}>
+                <BookOpen size={14} />
+                <span className="hidden sm:inline">Guidelines</span>
+              </button>
+              <button onClick={() => setDarkMode(!darkMode)}
+                className={`p-2 rounded-lg ${hoverBg} ${textMuted} transition-colors`}>
+                {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+              </button>
+              <button onClick={() => setSettingsOpen(true)}
+                className={`p-2 rounded-lg ${hoverBg} ${textMuted} transition-colors`}>
+                <Settings size={16} />
+              </button>
+            </div>
+          </header>
+
+          {/* Body */}
+          <div className="flex flex-1 overflow-hidden">
+            <Sidebar />
+            <main className="flex-1 overflow-y-auto p-4 md:p-6">
+              {view === "input" ? <InputView /> : <DashboardView />}
+            </main>
+          </div>
+
+          {/* Doc Panel Overlay */}
+          {docPanelOpen && <div className="fixed inset-0 z-30 bg-black/40" onClick={() => setDocPanelOpen(false)} />}
+          <DocPanel />
+
+          {/* Settings Modal */}
+          {settingsOpen && (
+            <>
+              <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setSettingsOpen(false)} />
+              <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md ${darkMode ? "bg-surface-3" : "bg-white"} border ${borderColor} rounded-2xl modal-elevated p-6`}>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className={`text-lg font-semibold ${textPrimary}`}>Settings</h3>
+                  <button onClick={() => setSettingsOpen(false)} className={textMuted}><X size={18} /></button>
+                </div>
+                <div className="space-y-4">
+                  {[
+                    { label: "Dark mode", desc: "Toggle dark/light theme", checked: darkMode, onChange: () => setDarkMode(!darkMode) },
+                    { label: "Show suggestions", desc: "Include rewrite suggestions in findings", checked: true, onChange: () => {} },
+                    { label: "Auto-expand critical", desc: "Automatically expand critical findings", checked: false, onChange: () => {} },
+                    { label: "Include doc references", desc: "Show messaging doc section references", checked: true, onChange: () => {} },
+                  ].map(setting => (
+                    <div key={setting.label} className="flex items-center justify-between">
+                      <div>
+                        <p className={`text-sm ${textPrimary}`}>{setting.label}</p>
+                        <p className={`text-xs ${textMuted}`}>{setting.desc}</p>
+                      </div>
+                      <button onClick={setting.onChange} className={`w-10 h-6 rounded-full transition-colors relative ${setting.checked ? "bg-brand-blue" : darkMode ? "bg-surface-2" : "bg-gray-300"}`}>
+                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${setting.checked ? "left-5" : "left-1"}`} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className={`mt-6 pt-4 border-t ${borderColor}`}>
+                  <p className={`text-xs ${textMuted}`}>Lighthouse v1.0.0 · Brand Messaging Auditor</p>
+                  <p className={`text-xs ${textMuted}`}>AI backend: Claude Sonnet · Guidelines: Live from GitHub</p>
+                  <p className={`text-xs ${textMuted}`}>Worker: {WORKER_URL || "local"}</p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Analyzing Overlay */}
+          {analyzing && <AnalyzingOverlay />}
+        </div>
+      );
+    }
 
     ReactDOM.createRoot(document.getElementById('root')).render(<Lighthouse />);
   </script>
