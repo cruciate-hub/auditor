@@ -247,7 +247,7 @@
           let label = "";
 
           if (inputMode === "url") {
-            const url = urlOverride || urlValue.trim();
+            const url = (typeof urlOverride === "string" ? urlOverride : null) || urlValue.trim();
             if (!url) throw new Error("Please enter a URL");
             sourceUrl = url;
             label = sourceUrl.replace("https://", "");
@@ -606,7 +606,7 @@
             </div>
 
             <div className={`px-6 pb-6`}>
-              <button id="analyze-btn" onClick={handleAnalyze}
+              <button id="analyze-btn" onClick={() => handleAnalyze()}
                 className="w-full btn-primary text-white font-medium text-sm flex items-center justify-center gap-2" style={{ height: 44, letterSpacing: "0.01em" }}>
                 <Play size={16} />
                 Run Analysis
