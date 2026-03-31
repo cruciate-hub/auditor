@@ -4,7 +4,7 @@ compatibility_date = "2025-03-31"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "438a07762a8b47d28aef6dbe510a541f"
 
 [vars]
 ALLOWED_ORIGIN = "https://cruciate-hub.github.io"
