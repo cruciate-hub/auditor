@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lighthouse — Brand Messaging Auditor</title>
+  <title>Content Checker — social.plus</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js" integrity="sha384-ku9eM40vVDsFUiERorrdlHlF0LIhdfn716M7TntM72Uo98T7LWiogD3hNenPx8Q0" crossorigin="anonymous"></script>
@@ -49,6 +49,7 @@
     .modal-elevated { box-shadow: 0 8px 32px rgba(0,0,0,0.7); }
     .brand-gradient-bg { background: linear-gradient(135deg, #3769EC 0%, #3B41EC 50%, #45A5ED 100%); }
     .drop-active { border-color: #3B41EC !important; background: rgba(59, 65, 236, 0.05) !important; }
+    .sp-particle-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 99998; }
     #error-display { display: none; position: fixed; top: 0; left: 0; right: 0; background: #fee2e2; color: #991b1b; padding: 16px; font-family: monospace; font-size: 13px; z-index: 99999; white-space: pre-wrap; max-height: 50vh; overflow: auto; }
   </style>
   <script>
@@ -95,6 +96,117 @@
     const Clock = (p) => <SvgIcon {...p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></SvgIcon>;
     const Menu = (p) => <SvgIcon {...p}><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></SvgIcon>;
     const Zap = (p) => <SvgIcon {...p}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></SvgIcon>;
+
+    // social.plus logo plus mark
+    const SpPlus = ({ size = 24 }) => (
+      <svg width={size} height={size} viewBox="0 0 390 390" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="sp-g1" x1="260" y1="0" x2="260" y2="260" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#f568f0"/><stop offset="0.5" stopColor="#f66005"/><stop offset="1" stopColor="#f7c506"/>
+          </linearGradient>
+          <linearGradient id="sp-g2" x1="0" y1="130" x2="260" y2="390" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#3769ec"/><stop offset="0.5" stopColor="#3b41ec"/><stop offset="1" stopColor="#45a5ed"/>
+          </linearGradient>
+        </defs>
+        <path d="M324.98,129.99h-65v-65C259.99,29.1,230.89,0,194.99,0h0C159.09,0,129.99,29.1,129.99,65v194.99h194.99c35.9,0,65-29.1,65-65h0C389.98,159.09,360.88,129.99,324.98,129.99Z" fill="url(#sp-g1)"/>
+        <path d="M129.99,129.99l-65,0C29.1,129.99,0,159.09,0,194.99v0c0,35.9,29.1,65,65,65l65,0v65c0,35.9,29.1,65,65,65h0c35.9,0,65-29.1,65-65l0-65v-62.59c0-37.23-30.18-67.4-67.4-67.4H129.99Z" fill="url(#sp-g2)"/>
+        <path d="M194.99,129.99h0c35.87,0,65,29.12,65,65v0c0,35.87-29.12,65-65,65h-65v-65C129.99,159.12,159.12,129.99,194.99,129.99Z" fill="#27265e"/>
+      </svg>
+    );
+
+    // ─── Particle System ─────────────────────────────────────────────
+    const SP_COLORS = ['#3b41ec','#1dc497','#f7c506','#ff305a','#ff6937','#9f72ff','#f568f0','#45a5ed'];
+    const SP_SHAPES = ['circle','square','triangle','diamond','star','ring'];
+
+    function spRand(a, b) { return Math.random() * (b - a) + a; }
+
+    function drawSpParticle(ctx, p) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = p.color;
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 1.5;
+      const z = p.size;
+      switch (p.shape) {
+        case 'circle': ctx.beginPath(); ctx.arc(0,0,z,0,Math.PI*2); ctx.fill(); break;
+        case 'square': ctx.fillRect(-z,-z,z*2,z*2); break;
+        case 'triangle': ctx.beginPath(); ctx.moveTo(0,-z); ctx.lineTo(z,z); ctx.lineTo(-z,z); ctx.closePath(); ctx.fill(); break;
+        case 'diamond': ctx.beginPath(); ctx.moveTo(0,-z*1.2); ctx.lineTo(z,0); ctx.lineTo(0,z*1.2); ctx.lineTo(-z,0); ctx.closePath(); ctx.fill(); break;
+        case 'star':
+          ctx.beginPath();
+          for (let i=0;i<5;i++) { const a=Math.PI/2+i*Math.PI*2/5, b=a+Math.PI/5; ctx.lineTo(Math.cos(a)*z,Math.sin(a)*z); ctx.lineTo(Math.cos(b)*z*.4,Math.sin(b)*z*.4); }
+          ctx.closePath(); ctx.fill(); break;
+        case 'ring': ctx.beginPath(); ctx.arc(0,0,z,0,Math.PI*2); ctx.stroke(); break;
+      }
+      ctx.restore();
+    }
+
+    // Global particle system on a fixed canvas
+    const spParticles = [];
+    let spCanvas = null;
+    let spCtx = null;
+    let spRaf = null;
+
+    function ensureSpCanvas() {
+      if (spCanvas) return;
+      spCanvas = document.createElement('canvas');
+      spCanvas.className = 'sp-particle-canvas';
+      document.body.appendChild(spCanvas);
+      spCtx = spCanvas.getContext('2d');
+      function resize() {
+        const d = window.devicePixelRatio || 1;
+        spCanvas.width = window.innerWidth * d;
+        spCanvas.height = window.innerHeight * d;
+        spCanvas.style.width = window.innerWidth + 'px';
+        spCanvas.style.height = window.innerHeight + 'px';
+        spCtx.setTransform(d,0,0,d,0,0);
+      }
+      resize();
+      window.addEventListener('resize', resize);
+    }
+
+    function spEmit(cx, cy, count = 24) {
+      ensureSpCanvas();
+      for (let i = 0; i < count; i++) {
+        const ang = spRand(0, Math.PI * 2), spd = spRand(2, 6);
+        spParticles.push({
+          x: cx, y: cy, vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd,
+          size: spRand(2, 5), color: SP_COLORS[Math.floor(spRand(0, SP_COLORS.length))],
+          shape: SP_SHAPES[Math.floor(spRand(0, SP_SHAPES.length))],
+          alpha: 1, rot: spRand(0, Math.PI*2), vr: spRand(-.08,.08),
+          life: 1, decay: spRand(.012,.025), gravity: spRand(.03,.07),
+        });
+      }
+      if (!spRaf) spRaf = requestAnimationFrame(spTick);
+    }
+
+    function spTick() {
+      spCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      for (let i = spParticles.length - 1; i >= 0; i--) {
+        const p = spParticles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += p.gravity; p.vx *= .99;
+        p.rot += p.vr; p.life -= p.decay; p.alpha = Math.max(0, p.life);
+        if (p.life <= 0) { spParticles.splice(i, 1); continue; }
+        drawSpParticle(spCtx, p);
+      }
+      if (spParticles.length > 0) spRaf = requestAnimationFrame(spTick);
+      else { spRaf = null; spCtx.clearRect(0, 0, window.innerWidth, window.innerHeight); }
+    }
+
+    function handleParticleClick(e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      spEmit(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    }
+
+    // Wrapper: adds particle burst to any button's onClick
+    function withParticles(handler) {
+      return (e) => {
+        handleParticleClick(e);
+        if (handler) handler(e);
+      };
+    }
     const BookOpen = (p) => <SvgIcon {...p}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></SvgIcon>;
     const Sun = (p) => <SvgIcon {...p}><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></SvgIcon>;
     const Moon = (p) => <SvgIcon {...p}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></SvgIcon>;
@@ -149,8 +261,9 @@
     ];
 
     const CONTENT_TYPES = [
-      "Webpage", "Email", "Social Post", "Presentation", "Sales Deck",
-      "Blog Post", "Ad Copy", "Product Copy", "Press Release", "Internal Doc"
+      "Webpage", "Email", "Newsletter", "Social Post", "Blog Post",
+      "Ad Copy", "Product Copy", "UI Copy", "Presentation", "Sales Deck",
+      "Press Release", "Case Study", "Internal Doc", "Design Implementation"
     ];
 
     const SEVERITY_CONFIG = {
@@ -300,7 +413,7 @@
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <button onClick={() => navigator.clipboard.writeText(finding.revised)}
+                  <button onClick={withParticles(() => navigator.clipboard.writeText(finding.revised))}
                     className="text-xs px-3 py-1.5 bg-brand-blue/10 text-brand-blue hover:bg-brand-blue/20 transition-colors" style={{ borderRadius: 8 }}>Copy suggestion</button>
                 </div>
               </div>
@@ -488,7 +601,7 @@
               ))}
             </div>
             <div className={`mt-6 pt-4 border-t ${t.borderColor}`}>
-              <p className={`text-xs ${t.textMuted}`}>Lighthouse v1.1.0 · Brand Messaging Auditor</p>
+              <p className={`text-xs ${t.textMuted}`}>Content Checker v1.1.0 · social.plus</p>
               <p className={`text-xs ${t.textMuted}`}>AI backend: Claude Sonnet · Guidelines: Live from GitHub</p>
               <p className={`text-xs ${t.textMuted}`}>Worker: {WORKER_URL || "local"}</p>
             </div>
@@ -519,7 +632,7 @@
               <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-wider mb-2`}>Quick Check</p>
               <div className="space-y-1">
                 {QUICK_PAGES.slice(0, 6).map(page => (
-                  <button key={page.url} onClick={() => onQuickAnalyze(page.url)}
+                  <button key={page.url} onClick={withParticles(() => onQuickAnalyze(page.url))}
                     className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left ${t.hoverBg} transition-colors`}>
                     <span className="text-xs">{page.icon}</span>
                     <span className={`text-xs ${t.textSecondary}`}>{page.label}</span>
@@ -558,7 +671,7 @@
     }
 
     // ─── Main Component ──────────────────────────────────────────────
-    function Lighthouse() {
+    function ContentChecker() {
       const [settings, setSettings] = useState(loadSettings);
       const darkMode = settings.darkMode;
       const t = useTheme(darkMode);
@@ -811,7 +924,7 @@
 
       const copySummary = useCallback(() => {
         const lines = [
-          `Lighthouse Audit: ${analyzedLabel}`,
+          `Content Checker Audit: ${analyzedLabel}`,
           `Score: ${overallScore}/100`,
           `Mode: ${analysisResult?.mode || "full"}`,
           "",
@@ -833,11 +946,8 @@
                 <Menu size={18} />
               </button>
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg brand-gradient-bg flex items-center justify-center">
-                  <Zap size={14} className="text-white" />
-                </div>
-                <span className={`text-sm font-bold ${t.textPrimary}`}>Lighthouse</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue">v1.1</span>
+                <SpPlus size={24} />
+                <span className={`text-sm font-bold ${t.textPrimary}`}>Content Checker</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -1005,7 +1115,7 @@
                     </div>
 
                     <div className="px-6 pb-6">
-                      <button onClick={() => handleAnalyze()}
+                      <button onClick={withParticles(() => handleAnalyze())}
                         className="w-full btn-primary text-white font-medium text-sm flex items-center justify-center gap-2" style={{ height: 44, letterSpacing: "0.01em" }}>
                         <Play size={16} />
                         Run Analysis
@@ -1027,13 +1137,13 @@
                       <p className={`text-sm ${t.textMuted} ml-6`}>{contentType} {"\u00B7"} {analysisResult?.mode || "full"} audit{analysisResult?.mode === "persona" ? ` (${persona.toUpperCase()})` : ""} {"\u00B7"} analyzed just now</p>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={exportJSON} className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 ${t.inputBg} ${t.textSecondary} ${t.hoverBg} border ${t.inputBorder}`}>
+                      <button onClick={withParticles(exportJSON)} className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 ${t.inputBg} ${t.textSecondary} ${t.hoverBg} border ${t.inputBorder}`}>
                         <Download size={14} /> Export JSON
                       </button>
-                      <button onClick={copySummary} className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 ${t.inputBg} ${t.textSecondary} ${t.hoverBg} border ${t.inputBorder}`}>
+                      <button onClick={withParticles(copySummary)} className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 ${t.inputBg} ${t.textSecondary} ${t.hoverBg} border ${t.inputBorder}`}>
                         <Copy size={14} /> Copy Summary
                       </button>
-                      <button onClick={() => setView("input")} className="px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 btn-primary text-white">
+                      <button onClick={withParticles(() => setView("input"))} className="px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 btn-primary text-white">
                         <RefreshCw size={14} /> New Analysis
                       </button>
                     </div>
@@ -1223,7 +1333,7 @@
       );
     }
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<Lighthouse />);
+    ReactDOM.createRoot(document.getElementById('root')).render(<ContentChecker />);
   </script>
 </body>
 </html>

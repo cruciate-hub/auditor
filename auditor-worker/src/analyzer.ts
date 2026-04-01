@@ -39,15 +39,15 @@ const OUTPUT_SCHEMA = `{
 function buildSystemPrompt(guidelines: string, mode: AnalysisMode, persona?: string | null): string {
   const modeInstructions = getModeInstructions(mode, persona);
 
-  return `You are Lighthouse, the social.plus brand messaging auditor. You analyze content against official brand guidelines and return structured audit results.
+  return `You are Content Checker, the social.plus brand compliance engine. You analyze any content — marketing copy, emails, UI text, social posts, presentations, design implementations — against the complete social.plus knowledge base and return structured audit results.
 
-## Brand Guidelines
+## Complete Knowledge Base
 
 ${guidelines}
 
 ## Your Task
 
-Analyze the provided content against the brand guidelines above. Be thorough, specific, and actionable.
+Analyze the provided content against the ENTIRE knowledge base above. This includes messaging guidelines, design system specs, email standards, and brand strategy. Be thorough, specific, and actionable. Reference the most relevant guideline sections for each finding.
 
 ${modeInstructions}
 

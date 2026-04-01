@@ -1,16 +1,64 @@
 import type { Env } from "./types";
 
-const CACHE_KEY = "guidelines:latest";
+const CACHE_KEY = "guidelines:v2";
 const CACHE_TTL_SECONDS = 3600; // 1 hour
 
-const MESSAGING_FILES = [
-  "terminology.md",
-  "tone.md",
-  "positioning.md",
-  "narrative.md",
-  "value-story.md",
-  "boilerplates.md",
-  "ui-micro-copy.md",
+/**
+ * All knowledge files from the marketing-team repo, organized by section.
+ * The Content Checker has access to EVERYTHING.
+ */
+const KNOWLEDGE_BASE: Array<{ section: string; path: string; files: string[] }> = [
+  {
+    section: "BRAND BRAIN",
+    path: "",
+    files: ["brain.md"],
+  },
+  {
+    section: "MESSAGING",
+    path: "messaging",
+    files: [
+      "brain.md",
+      "terminology.md",
+      "tone.md",
+      "positioning.md",
+      "narrative.md",
+      "value-story.md",
+      "boilerplates.md",
+      "ui-micro-copy.md",
+    ],
+  },
+  {
+    section: "DESIGN SYSTEM",
+    path: "design-system",
+    files: [
+      "brain.md",
+      "colors-palette.md",
+      "colors-usage.md",
+      "typography.md",
+      "buttons.md",
+      "inputs.md",
+      "layout.md",
+      "spacing.md",
+      "border-radius.md",
+      "shadows.md",
+      "iconography.md",
+      "imagery.md",
+      "logo.md",
+      "accessibility.md",
+      "social-posts.md",
+    ],
+  },
+  {
+    section: "EMAIL GUIDELINES",
+    path: "emails",
+    files: [
+      "emails.md",
+      "product-update-newsletter-spec.md",
+      "product-update-newsletter-structure.md",
+      "product-update-newsletter-blocks.md",
+      "product-update-newsletter-assembly.md",
+    ],
+  },
 ];
 
 interface GitHubContentResponse {
@@ -19,18 +67,19 @@ interface GitHubContentResponse {
   sha: string;
 }
 
+const REPO_BASE = "https://api.github.com/repos/cruciate-hub/marketing-team/contents";
+
 /**
  * Fetch a single file from the GitHub API, returning its decoded text content.
- * Uses the GitHub Contents API (not raw.githubusercontent.com).
  */
 async function fetchFile(
-  filename: string,
+  filePath: string,
   token?: string,
 ): Promise<string> {
-  const url = `https://api.github.com/repos/cruciate-hub/marketing-team/contents/messaging/${filename}`;
+  const url = `${REPO_BASE}/${filePath}`;
   const headers: Record<string, string> = {
     Accept: "application/vnd.github.v3+json",
-    "User-Agent": "lighthouse-auditor-worker",
+    "User-Agent": "content-checker-worker",
   };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
@@ -38,7 +87,7 @@ async function fetchFile(
 
   const res = await fetch(url, { headers });
   if (!res.ok) {
-    throw new Error(`GitHub API error for ${filename}: ${res.status} ${res.statusText}`);
+    throw new Error(`GitHub API error for ${filePath}: ${res.status} ${res.statusText}`);
   }
 
   const data = (await res.json()) as GitHubContentResponse;
@@ -51,7 +100,7 @@ async function fetchFile(
 }
 
 /**
- * Fetch all messaging guideline files and return them concatenated with headers.
+ * Fetch all knowledge base files and return them concatenated with section headers.
  * Results are cached in KV for 1 hour.
  */
 export async function getGuidelines(env: Env): Promise<{ text: string; version: string }> {
@@ -61,21 +110,44 @@ export async function getGuidelines(env: Env): Promise<{ text: string; version: 
     return cached;
   }
 
+  // Build list of all fetches
+  const fetchList: Array<{ section: string; filePath: string; label: string }> = [];
+  for (const group of KNOWLEDGE_BASE) {
+    for (const file of group.files) {
+      const filePath = group.path ? `${group.path}/${file}` : file;
+      const label = file.replace(".md", "").replace(/-/g, " ");
+      fetchList.push({ section: group.section, filePath, label });
+    }
+  }
+
   // Fetch all files in parallel
   const results = await Promise.all(
-    MESSAGING_FILES.map(async (filename) => {
-      const content = await fetchFile(filename, env.GITHUB_TOKEN);
-      return { filename, content };
+    fetchList.map(async ({ section, filePath, label }) => {
+      try {
+        const content = await fetchFile(filePath, env.GITHUB_TOKEN);
+        return { section, filePath, label, content };
+      } catch (err) {
+        console.error(`Failed to fetch ${filePath}:`, err);
+        return { section, filePath, label, content: null };
+      }
     }),
   );
 
-  // Concatenate with clear section headers
-  const text = results
-    .map(({ filename, content }) => {
-      const label = filename.replace(".md", "").replace(/-/g, " ").toUpperCase();
-      return `\n## ${label}\n(Source: messaging/${filename})\n\n${content}`;
-    })
-    .join("\n\n---\n");
+  // Group by section and concatenate
+  const sections = new Map<string, string[]>();
+  for (const { section, filePath, label, content } of results) {
+    if (!content) continue;
+    if (!sections.has(section)) {
+      sections.set(section, []);
+    }
+    sections.get(section)!.push(
+      `### ${label.toUpperCase()}\n(Source: ${filePath})\n\n${content}`,
+    );
+  }
+
+  const text = Array.from(sections.entries())
+    .map(([section, parts]) => `\n# ${section}\n\n${parts.join("\n\n---\n\n")}`)
+    .join("\n\n═══════════════════════════════════════\n");
 
   const version = new Date().toISOString();
   const result = { text, version };
@@ -100,30 +172,17 @@ export async function getSiteContent(env: Env): Promise<Record<string, any> | nu
     return cached;
   }
 
-  const url = "https://api.github.com/repos/cruciate-hub/marketing-team/contents/website/site-content.json";
-  const headers: Record<string, string> = {
-    Accept: "application/vnd.github.v3+json",
-    "User-Agent": "lighthouse-auditor-worker",
-  };
-  if (env.GITHUB_TOKEN) {
-    headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`;
-  }
+  try {
+    const decoded = await fetchFile("website/site-content.json", env.GITHUB_TOKEN);
+    const parsed = JSON.parse(decoded);
 
-  const res = await fetch(url, { headers });
-  if (!res.ok) {
-    console.error(`Failed to fetch site-content.json: ${res.status}`);
+    await env.CACHE.put(cacheKey, JSON.stringify(parsed), {
+      expirationTtl: CACHE_TTL_SECONDS,
+    });
+
+    return parsed;
+  } catch (err) {
+    console.error("Failed to fetch site-content.json:", err);
     return null;
   }
-
-  const data = (await res.json()) as GitHubContentResponse;
-  const raw = atob(data.content.replace(/\n/g, ""));
-  const bytes = Uint8Array.from(raw, (c) => c.charCodeAt(0));
-  const decoded = new TextDecoder().decode(bytes);
-  const parsed = JSON.parse(decoded);
-
-  await env.CACHE.put(cacheKey, JSON.stringify(parsed), {
-    expirationTtl: CACHE_TTL_SECONDS,
-  });
-
-  return parsed;
 }
