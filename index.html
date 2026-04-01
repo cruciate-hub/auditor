@@ -625,11 +625,19 @@
     }
 
     // ─── Sidebar ────────────────────────────────────────────────────
-    function Sidebar({ open, history, onQuickAnalyze, onDocPanel, onClearHistory, darkMode }) {
+    function Sidebar({ open, history, onQuickAnalyze, onDocPanel, onClearHistory, onNewAnalysis, darkMode }) {
       const t = useTheme(darkMode);
       return (
         <div className={`${open ? "w-64" : "w-0 overflow-hidden"} flex-shrink-0 border-r ${t.borderColor} ${t.cardBg} transition-all duration-200 flex flex-col`}>
           <div className="p-4 flex-1 overflow-y-auto">
+            <div className="mb-6">
+              <button onClick={withParticles(onNewAnalysis)}
+                className="w-full btn-primary text-white font-medium text-sm flex items-center justify-center gap-2 py-2.5">
+                <Play size={14} />
+                New Analysis
+              </button>
+            </div>
+
             <div className="mb-6">
               <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-wider mb-2`}>Source of Truth</p>
               <button onClick={onDocPanel}
@@ -819,8 +827,12 @@
           let label = "";
 
           if (inputMode === "url") {
-            const url = (typeof urlOverride === "string" ? urlOverride : null) || urlValue.trim();
+            let url = (typeof urlOverride === "string" ? urlOverride : null) || urlValue.trim();
             if (!url) throw new Error("Please enter a URL");
+            // Auto-prepend https:// if missing a protocol
+            if (!/^https?:\/\//i.test(url)) {
+              url = "https://" + url;
+            }
             sourceUrl = url;
             label = sourceUrl.replace("https://", "");
 
@@ -983,7 +995,7 @@
 
           {/* Body */}
           <div className="flex flex-1 overflow-hidden">
-            <Sidebar open={sidebarOpen} history={history} onQuickAnalyze={handleQuickAnalyze} onDocPanel={() => setDocPanelOpen(true)} onClearHistory={clearHistory} darkMode={darkMode} />
+            <Sidebar open={sidebarOpen} history={history} onQuickAnalyze={handleQuickAnalyze} onDocPanel={() => setDocPanelOpen(true)} onClearHistory={clearHistory} onNewAnalysis={() => setView("input")} darkMode={darkMode} />
 
             <main className="flex-1 overflow-y-auto p-4 md:p-6">
               {view === "input" ? (
