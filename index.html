@@ -350,14 +350,14 @@
     // ─── Theme hook ─────────────────────────────────────────────────
     function useTheme(darkMode) {
       return useMemo(() => ({
-        bg: darkMode ? "bg-surface-0" : "bg-gray-50",
+        bg: darkMode ? "bg-surface-0" : "bg-[#F5F5F5]",
         cardBg: darkMode ? "bg-surface-1" : "bg-white",
         borderColor: darkMode ? "border-bdark" : "border-gray-200",
         textPrimary: darkMode ? "text-white" : "text-gray-900",
         textSecondary: darkMode ? "text-txt-secondary" : "text-gray-500",
         textMuted: darkMode ? "text-txt-muted" : "text-gray-400",
         inputBg: darkMode ? "bg-surface-2" : "bg-gray-100",
-        inputBorder: darkMode ? "border-bdark-hover" : "border-gray-300",
+        inputBorder: darkMode ? "border-[rgba(255,255,255,0.1)]" : "border-gray-300",
         hoverBg: darkMode ? "hover:bg-surface-2" : "hover:bg-gray-100",
       }), [darkMode]);
     }
@@ -455,12 +455,12 @@
             <div className={`px-4 pb-4 pt-0 border-t ${t.borderColor}`}>
               <div className="pt-4 space-y-4">
                 <div>
-                  <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-wider mb-1`}>Explanation</p>
+                  <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-[0.1em] mb-1`}>Explanation</p>
                   <p className={`text-sm ${t.textSecondary} leading-relaxed`}>{finding.explanation}</p>
                 </div>
                 {showDocRefs && finding.docRef && (
                   <div>
-                    <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-wider mb-1`}>Doc Reference</p>
+                    <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-[0.1em] mb-1`}>Doc Reference</p>
                     <p className="text-sm text-brand-blue">{finding.docRef}</p>
                   </div>
                 )}
@@ -567,12 +567,12 @@
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2">
                   <div className={`p-4 ${darkMode ? "bg-status-red/5" : "bg-red-50"} ${darkMode ? "" : "border-r border-gray-200"}`}>
-                    <p className="text-xs font-medium text-status-red mb-2 uppercase tracking-wider">Current</p>
+                    <p className="text-xs font-medium text-status-red mb-2 uppercase tracking-[0.1em]">Current</p>
                     <p className={`text-sm ${t.textSecondary} leading-relaxed`}>{f.original}</p>
                   </div>
                   <div className={`p-4 ${darkMode ? "bg-status-green/5" : "bg-green-50"}`}>
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-medium text-status-green uppercase tracking-wider">Suggested</p>
+                      <p className="text-xs font-medium text-status-green uppercase tracking-[0.1em]">Suggested</p>
                       <button onClick={() => { navigator.clipboard.writeText(f.revised); if (onCopy) onCopy("Suggestion copied"); }}
                         className="text-xs text-brand-blue hover:text-brand-hover flex items-center gap-1 transition-colors">
                         <Copy size={10} /> Copy
@@ -683,7 +683,7 @@
             {showNewAnalysis && (
               <div className="mb-6">
                 <button onClick={withParticles(onNewAnalysis)}
-                  className="w-full btn-primary text-white font-medium text-sm flex items-center justify-center gap-2 py-2.5">
+                  className="w-full btn-primary text-white font-medium text-[15px] flex items-center justify-center gap-2 py-2.5">
                   <Play size={14} />
                   New Analysis
                 </button>
@@ -691,9 +691,9 @@
             )}
 
             <div className="mb-6">
-              <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-wider mb-2`}>Guidelines</p>
+              <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-[0.1em] mb-2`}>Guidelines</p>
               <button onClick={onDocPanel}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl ${t.inputBg} border ${t.inputBorder} ${t.hoverBg} transition-colors text-left`}>
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg ${t.inputBg} border ${t.inputBorder} ${t.hoverBg} transition-colors text-left`}>
                 <FileText size={16} className="text-brand-blue flex-shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className={`text-xs font-medium ${t.textPrimary} truncate`}>Brand Guidelines</p>
@@ -703,7 +703,7 @@
             </div>
 
             <div className="mb-6">
-              <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-wider mb-2`}>Quick Check</p>
+              <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-[0.1em] mb-2`}>Quick Check</p>
               <div className="space-y-1">
                 {QUICK_PAGES.map(page => (
                   <button key={page.url} onClick={withParticles(() => onQuickAnalyze(page.url))}
@@ -718,7 +718,7 @@
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-wider`}>Recent</p>
+                <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-[0.1em]`}>Recent</p>
                 {history.length > 0 && (
                   <button onClick={onClearHistory} className={`text-xs ${t.textMuted} hover:text-status-red transition-colors`} title="Clear history">
                     <Trash2 size={12} />
@@ -1099,7 +1099,7 @@
                     <div className={`${t.cardBg} border ${t.borderColor} rounded-xl p-4 ${darkMode ? "card-elevated" : ""}`}>
                       <div className="flex items-center gap-2 mb-3">
                         <User size={14} className="text-brand-blue" />
-                        <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-wider`}>Select Persona</p>
+                        <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-[0.1em]`}>Select Persona</p>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         {PERSONAS.map(p => (
@@ -1151,7 +1151,7 @@
                               type="text" value={urlValue} onChange={e => setUrlValue(e.target.value)}
                               onKeyDown={e => e.key === "Enter" && handleAnalyze()}
                               placeholder="Paste URL — webpage, Google Doc, Sheet, Slides, or Figma link..."
-                              className={`w-full pl-11 pr-4 py-3.5 rounded-xl ${t.inputBg} border ${t.inputBorder} ${t.textPrimary} text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/40 focus:border-brand-blue/40`}
+                              className={`w-full pl-11 pr-4 py-3.5 rounded-lg ${t.inputBg} border ${t.inputBorder} ${t.textPrimary} text-[15px] focus:outline-none focus:border-brand-blue focus:shadow-[0_0_0_3px_rgba(59,65,236,0.25)]`}
                             />
                           </div>
                           <div className="flex flex-wrap gap-1.5">
@@ -1193,7 +1193,7 @@
                           <textarea value={pasteValue} onChange={e => setPasteValue(e.target.value)}
                             placeholder="Paste your content here..."
                             rows={8}
-                            className={`w-full px-4 py-3 rounded-xl ${t.inputBg} border ${t.inputBorder} ${t.textPrimary} text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/40 resize-none`} />
+                            className={`w-full px-4 py-3 rounded-lg ${t.inputBg} border ${t.inputBorder} ${t.textPrimary} text-[15px] focus:outline-none focus:border-brand-blue focus:shadow-[0_0_0_3px_rgba(59,65,236,0.25)] resize-none`} />
                           <div className="flex justify-between">
                             <span className={`text-xs ${t.textMuted}`}>{pasteValue.length} characters {"\u00B7"} {pasteValue.split(/\s+/).filter(Boolean).length} words</span>
                             <button onClick={() => navigator.clipboard.readText().then(text => setPasteValue(text)).catch(() => {})}
@@ -1207,7 +1207,7 @@
 
                     <div className="px-6 pb-6">
                       <button onClick={withParticles(() => handleAnalyze())}
-                        className="w-full btn-primary text-white font-medium text-sm flex items-center justify-center gap-2" style={{ height: 44, letterSpacing: "0.01em" }}>
+                        className="w-full btn-primary text-white font-medium text-[15px] flex items-center justify-center gap-2" style={{ height: 44, letterSpacing: "0.01em", padding: "0 20px" }}>
                         <Play size={16} />
                         Run Analysis
                       </button>
@@ -1255,7 +1255,7 @@
                     </div>
 
                     <div className={`${t.cardBg} border ${t.borderColor} rounded-2xl p-6 ${darkMode ? "card-elevated" : ""}`}>
-                      <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-wider mb-4`}>Dimension Scores</p>
+                      <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-[0.1em] mb-4`}>Dimension Scores</p>
                       {RechartsOK && dimensions.length > 0 ? (
                         <RC.ResponsiveContainer width="100%" height={200}>
                           <RC.RadarChart data={dimensions}>
@@ -1283,7 +1283,7 @@
                     </div>
 
                     <div className={`${t.cardBg} border ${t.borderColor} rounded-2xl p-6 space-y-4 ${darkMode ? "card-elevated" : ""}`}>
-                      <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-wider`}>Issue Breakdown</p>
+                      <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-[0.1em]`}>Issue Breakdown</p>
                       {[
                         { label: "Critical", count: criticalCount, config: SEVERITY_CONFIG.critical, filter: "critical" },
                         { label: "Warnings", count: warningCount, config: SEVERITY_CONFIG.warning, filter: "warning" },
@@ -1312,7 +1312,7 @@
                   </div>
 
                   {/* View Tabs */}
-                  <div className={`flex items-center gap-1 p-1 rounded-xl ${t.inputBg} w-fit`}>
+                  <div className={`flex items-center gap-1 p-1 rounded-lg ${t.inputBg} w-fit`}>
                     {[
                       { id: "dashboard", icon: List, label: "Findings" },
                       { id: "sidebyside", icon: Columns, label: "Side by Side" },
