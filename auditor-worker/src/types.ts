@@ -64,6 +64,12 @@ export interface TermsResult {
   forbidden: TermCheck[];
 }
 
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
 export interface AuditResult {
   overallScore: number;
   dimensions: DimensionScore[];
@@ -73,6 +79,7 @@ export interface AuditResult {
   analyzedUrl: string | null;
   mode: AnalysisMode;
   contentType: string;
+  usage?: TokenUsage;
 }
 
 // ─── Annotated content for side-by-side view ────────────────────

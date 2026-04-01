@@ -185,6 +185,7 @@ export async function analyzeContent(
   const data = (await response.json()) as {
     content: Array<{ type: string; text: string }>;
     stop_reason: string;
+    usage?: { input_tokens: number; output_tokens: number };
   };
 
   // Check if response was truncated
@@ -213,6 +214,11 @@ export async function analyzeContent(
       analyzedUrl: request.sourceUrl,
       mode: request.mode,
       contentType: request.contentType,
+      usage: data.usage ? {
+        inputTokens: data.usage.input_tokens,
+        outputTokens: data.usage.output_tokens,
+        totalTokens: data.usage.input_tokens + data.usage.output_tokens,
+      } : undefined,
     };
   } catch {
     throw new Error(`Failed to parse Claude response as JSON: ${jsonStr.slice(0, 200)}...`);

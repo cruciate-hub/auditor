@@ -242,7 +242,6 @@
       { label: "Monetization", url: "https://social.plus/monetization", icon: "\u{1F3AF}" },
       { label: "Chat", url: "https://social.plus/chat", icon: "\u{1F4AC}" },
       { label: "Social", url: "https://social.plus/social", icon: "\u{1F465}" },
-      { label: "Blog", url: "https://social.plus/blog", icon: "\u{1F4DD}" },
     ];
 
     const ANALYSIS_MODES = [
@@ -278,6 +277,21 @@
       autoExpandCritical: false,
       showDocRefs: true,
     };
+
+    // ─── Utility: Token cost calculation (Sonnet pricing) ─────────
+    // Claude Sonnet: $3/M input, $15/M output
+    function formatTokenCost(usage) {
+      if (!usage) return null;
+      const inputCost = (usage.inputTokens / 1_000_000) * 3;
+      const outputCost = (usage.outputTokens / 1_000_000) * 15;
+      const totalCost = inputCost + outputCost;
+      return {
+        input: usage.inputTokens.toLocaleString(),
+        output: usage.outputTokens.toLocaleString(),
+        total: usage.totalTokens.toLocaleString(),
+        cost: totalCost < 0.01 ? `<$0.01` : `$${totalCost.toFixed(2)}`,
+      };
+    }
 
     // ─── Utility: Fetch with retry + backoff ────────────────────────
     async function fetchWithRetry(url, options, maxRetries = 2) {
@@ -631,7 +645,7 @@
             <div className="mb-6">
               <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-wider mb-2`}>Quick Check</p>
               <div className="space-y-1">
-                {QUICK_PAGES.slice(0, 6).map(page => (
+                {QUICK_PAGES.map(page => (
                   <button key={page.url} onClick={withParticles(() => onQuickAnalyze(page.url))}
                     className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left ${t.hoverBg} transition-colors`}>
                     <span className="text-xs">{page.icon}</span>
@@ -1052,18 +1066,6 @@
                               </span>
                             ))}
                           </div>
-                          <div>
-                            <p className={`text-xs font-medium ${t.textMuted} uppercase tracking-wider mb-2`}>Quick check — social.plus pages</p>
-                            <div className="grid grid-cols-3 gap-2">
-                              {QUICK_PAGES.map(page => (
-                                <button key={page.url} onClick={() => { setUrlValue(page.url); }}
-                                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-left ${t.inputBg} ${t.hoverBg} border ${t.inputBorder} transition-colors`}>
-                                  <span className="text-sm">{page.icon}</span>
-                                  <span className={`text-xs ${t.textSecondary} truncate`}>{page.label}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
                         </div>
                       )}
 
@@ -1134,7 +1136,13 @@
                         </button>
                         <h2 className={`text-lg font-semibold ${t.textPrimary}`}>{analyzedLabel || "Analysis"}</h2>
                       </div>
-                      <p className={`text-sm ${t.textMuted} ml-6`}>{contentType} {"\u00B7"} {analysisResult?.mode || "full"} audit{analysisResult?.mode === "persona" ? ` (${persona.toUpperCase()})` : ""} {"\u00B7"} analyzed just now</p>
+                      <p className={`text-sm ${t.textMuted} ml-6`}>
+                        {contentType} {"\u00B7"} {analysisResult?.mode || "full"} audit{analysisResult?.mode === "persona" ? ` (${persona.toUpperCase()})` : ""}
+                        {analysisResult?.usage && (() => {
+                          const tc = formatTokenCost(analysisResult.usage);
+                          return tc ? <>{" \u00B7 "}<span title={`Input: ${tc.input} \u00B7 Output: ${tc.output}`}>{tc.total} tokens ({tc.cost})</span></> : null;
+                        })()}
+                      </p>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={withParticles(exportJSON)} className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 ${t.inputBg} ${t.textSecondary} ${t.hoverBg} border ${t.inputBorder}`}>
