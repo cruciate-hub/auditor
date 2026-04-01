@@ -4,6 +4,27 @@ import { extractContent } from "./extractor";
 
 const MAX_CONTENT_LENGTH = 50_000; // Characters — matches extractor limit
 
+const VALID_MODES = new Set(["full", "terminology", "hierarchy", "tone", "persona", "positioning"]);
+
+// Simple in-memory rate limiter: max requests per IP per window
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX = 10; // 10 analyze requests per minute per IP
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  entry.count++;
+  return true;
+}
+
 // Block SSRF: private/reserved IP ranges and metadata endpoints
 const BLOCKED_HOSTS = [
   /^localhost$/i,
@@ -37,6 +58,13 @@ export default {
 
     try {
       if (request.method === "POST" && url.pathname === "/analyze") {
+        const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
+        if (!checkRateLimit(clientIp)) {
+          return corsResponse(
+            jsonResponse({ error: "Rate limited. Please wait a moment before trying again." }, 429),
+            env,
+          );
+        }
         return corsResponse(await handleAnalyze(request, env), env);
       }
 
@@ -58,8 +86,19 @@ export default {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       console.error("Worker error:", message);
+
+      // Surface safe, actionable messages; hide internal details
+      const safeMessages = [
+        "Rate limited by Claude API",
+        "Analysis was too large",
+        "No text response",
+        "Failed to parse Claude response",
+        "GitHub API error",
+        "Please try again",
+      ];
+      const isSafe = safeMessages.some((prefix) => message.includes(prefix));
       return corsResponse(
-        jsonResponse({ error: "Internal server error" }, 500),
+        jsonResponse({ error: isSafe ? message : "Internal server error" }, 500),
         env,
       );
     }
@@ -89,6 +128,11 @@ async function handleAnalyze(request: Request, env: Env): Promise<Response> {
 
   if (!body.mode) {
     body.mode = "full";
+  } else if (!VALID_MODES.has(body.mode)) {
+    return jsonResponse(
+      { error: `Invalid analysis mode '${body.mode}'. Valid modes: ${[...VALID_MODES].join(", ")}` },
+      400,
+    );
   }
 
   if (!body.contentType) {
